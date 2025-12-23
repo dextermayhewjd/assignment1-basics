@@ -7,10 +7,13 @@ repeat until vocab_size reached:
     4. 更新所有 pre-token 中的序列
 """
 
+import regex as re 
+from collections import Counter
+
 def train_bpe(
               input_path :str,
               vocab_size :int,
-              sepcial_tokens:list[str],  
+              special_tokens:list[str],  
     ):
     """
     Train a byte-level BPE tokenizer.
@@ -23,8 +26,22 @@ def train_bpe(
         list of merges in order
     """
     
+    def init_vocab(vocab_size:int, special_tokens:list[str]):
+        vocab:dict[int,bytes] = { x:bytes[(x)] for x in range(256)}
+        next_id = 256
+        
+        for s in special_tokens:
+            if next_id >= vocab_size:
+                break
+            vocab[next_id] = s.encode("utf-8")
+            next_id +=1
+        
+        return vocab, next_id
     
-    
-    
-    return 
+    PAT = r"""'(?:[sdmt]|ll|ve|re)| ?\p{L}+| ?\p{N}+| ?[^\s\p{L}\p{N}]+|\s+(?!\S)|\s+"""
 
+    '''
+    读取训练文本
+    '''
+    with open(input_path, "r", encoding="utf-8") as f:
+        text = f.read()

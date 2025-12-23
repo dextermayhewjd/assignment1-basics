@@ -5,7 +5,8 @@ strings = [
     # "😀",            # emoji
 ]
 
-encodings = ["utf-8", "utf-16", "utf-32"]
+# encodings = ["utf-8", "utf-16", "utf-32"]
+encodings = ["utf-8"]
 
 for s in strings:
     print(f"\nString: {repr(s)}")
