@@ -13,6 +13,8 @@ from typing import NamedTuple
 from cs336_basics.pretokenization_example import find_chunk_boundaries
 from multiprocessing import Pool, cpu_count
 from collections import defaultdict
+from tqdm import trange
+import time
 
 PAT2 = re.compile(r"""
 '(?:[sdmt]|ll|ve|re)
@@ -171,19 +173,22 @@ def train_bpe(
               vocab_size :int,
               special_tokens:list[str],  
     ):
-    # 假设 next_id 是256 说明已经有0-255 256 个了
-    # 已知 vocab是256的话 停下来的就是next_id = vocab
-    # 假设 vocab是257的话 那么 257-256 = merge次数 
-    # vocab - next_id 
-    vocab, next_id = init_vocab(vocab_size= vocab_size,special_tokens=special_tokens)
+
+    # =========================
+    # 【新增】计时
+    # =========================
+    start_time = time.time()
+    
+    vocab, next_id = init_vocab(
+        vocab_size= vocab_size,
+        special_tokens=special_tokens
+    )
+    
     merges = []
     initial_vocab_size = len(vocab)
     num_merges = vocab_size - initial_vocab_size
 
-    '''
-    读取训练文本
-    '''
-    
+
     '''
     首先这里读的是bytes了
     '''
@@ -216,9 +221,13 @@ def train_bpe(
         pair_bytes_Counter = calculate_pair_bytes_count(bytes_counts = bytes_counts)
         
         
-        for _ in range(num_merges):
+        # for _ in range(num_merges):
             #(b'l', b'o'):5
-            
+        for merge_idx in trange(
+            num_merges,
+            desc="BPE merges",
+            unit="merge",
+        ):    
             # pair2seq_dict: dict[tuple[bytes, bytes], set[tuple[bytes, ...]]]
 
             if not pair_bytes_Counter:
@@ -268,5 +277,27 @@ def train_bpe(
                     if changed:
                         bytes_counts.pop(token)
                         bytes_counts[tuple(new_token)] += freq
+            # ==================================================
+            # 【新增】更有信息量的统计（每 500 次）
+            # ==================================================
+            if merge_idx % 500 == 0 and merge_idx > 0:
+                longest = max(len(tok) for tok in vocab.values())
+                top_freq = pair_bytes_Counter.get(highest_pair, 0)
 
+                print(
+                    f"\n[BPE] merge {merge_idx}/{num_merges} | "
+                    f"vocab={len(vocab)} | "
+                    f"longest_token_bytes={longest} | "
+                    f"top_pair_freq={top_freq}"
+                )
+                
+        # =========================
+        # 【新增】训练结束统计
+        # =========================
+        elapsed = time.time() - start_time
+        print("\n[BPE DONE]")
+        print(f"  merges learned: {len(merges)}")
+        print(f"  vocab size: {len(vocab)}")
+        print(f"  total time: {elapsed / 60:.2f} minutes")
+        
         return  vocab, merges
