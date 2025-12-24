@@ -12,6 +12,7 @@ from collections import Counter
 from typing import NamedTuple
 from cs336_basics.pretokenization_example import find_chunk_boundaries
 from multiprocessing import Pool, cpu_count
+from collections import defaultdict
 
 PAT2 = re.compile(r"""
 '(?:[sdmt]|ll|ve|re)
@@ -102,11 +103,13 @@ def parallel_worker(args)->dict[tuple[bytes,...],int]:
 
 
 #(b'la', b'o', b'w'): 5 ->(b'la', b'o'):5 , (b'o', b'w'):5
+#加上 初始化pair2seq 的dict                       
 def calculate_pair_bytes_count(
                             bytes_counts:Counter[tuple[bytes,...]]
                             )->Counter[tuple[bytes, bytes]]:
-    pair_counts: Counter[tuple[bytes, bytes]] = Counter()
     
+    pair_counts: Counter[tuple[bytes, bytes]] = Counter()
+
     for key,value in bytes_counts.items():
         key_len = len(key)
         '''
@@ -115,7 +118,7 @@ def calculate_pair_bytes_count(
         for x in range(key_len -1): 
             new_tuple = (key[x],key[x+1])
             pair_counts[new_tuple] +=value
-    
+            # pair2seq_dict[new_tuple].add(key)
     return pair_counts
 
 # (b'l', b'o'):5,(b'a', b'b'):9,(b'c', b'd'):5  ->  (b'a', b'b')
@@ -207,22 +210,63 @@ def train_bpe(
               sub_counters = pool.map(parallel_worker,worker_parameters)
         bytes_counts = sum(sub_counters,Counter())
         
+        
+        # 初始化  (b'l', b'o'):5
+        pair_bytes_Counter: Counter[tuple[bytes, bytes]]
+        pair_bytes_Counter = calculate_pair_bytes_count(bytes_counts = bytes_counts)
+        
+        
         for _ in range(num_merges):
             #(b'l', b'o'):5
-            pair_bytes_Counter:Counter[tuple[bytes,bytes]] = calculate_pair_bytes_count(bytes_counts = bytes_counts)
+            
+            # pair2seq_dict: dict[tuple[bytes, bytes], set[tuple[bytes, ...]]]
+
             if not pair_bytes_Counter:
                 break  # 没有任何pair可merge了  
             highest_pair:tuple[bytes,bytes] = get_highest_pair(pair_bytes_Counter=pair_bytes_Counter)
             
-            merged_bytes = highest_pair[0] + highest_pair[1]
+            a, b = highest_pair
+            merged_bytes = a + b 
+            
+            
             vocab[next_id] = merged_bytes
             merges.append(highest_pair)
             next_id += 1
-                
-            new_tuple_bytes_counts: Counter[tuple[bytes, ...]] = Counter()
-            for tuple_bytes,value in bytes_counts.items():
-                new_tuple_bytes = merge_pair_in_token(token=tuple_bytes,pair= highest_pair)
-                new_tuple_bytes_counts[new_tuple_bytes] += value
+            
+            '''
+            首先 merge 只merge 需要merge的
+            merge 会怎么影响 bytes_counts  (b'la', b'o', b'w'): 5 ->(b'la', b'o'):5
+                            和pair_bytes_Counter(b'l', b'o'):5
+            '''
+            for token, freq in list(bytes_counts.items()):
+                    i = 0
+                    new_token = []
+                    changed = False
 
-            bytes_counts = new_tuple_bytes_counts
+                    while i < len(token):
+                        if i < len(token) - 1 and token[i] == a and token[i+1] == b:
+                            left = token[i-1] if i > 0 else None
+                            right = token[i+2] if i + 2 < len(token) else None
+
+                            # 1️⃣ 减旧 pair
+                            pair_bytes_Counter[(a, b)] -= freq
+                            if left is not None:
+                                pair_bytes_Counter[(left, a)] -= freq
+                                pair_bytes_Counter[(left, merged_bytes)] += freq
+                            if right is not None:
+                                pair_bytes_Counter[(b, right)] -= freq
+                                pair_bytes_Counter[(merged_bytes, right)] += freq
+
+                            # 2️⃣ 再真的 merge
+                            new_token.append(merged_bytes)
+                            i += 2
+                            changed = True
+                            
+                        else:
+                            new_token.append(token[i])
+                            i +=1
+                    if changed:
+                        bytes_counts.pop(token)
+                        bytes_counts[tuple(new_token)] += freq
+
         return  vocab, merges
