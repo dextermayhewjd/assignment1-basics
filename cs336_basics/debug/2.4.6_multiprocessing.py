@@ -18,19 +18,19 @@ list_text = [text1,text2,text3,text4]
 y中每一个元素 
 作为实参传给task(x)
 '''
-# def task1(x:str)->list[str]:
-#     # print(x) # 拿到的是 string
-#     token_list = x.split(" ")
-#     # print(token_list) # 返回的是list
-#     return token_list
+def task1(x:str)->list[str]:
+    # print(x) # 拿到的是 string
+    token_list = x.split(" ")
+    # print(token_list) # 返回的是list
+    return token_list
 
 
-# if __name__ == "__main__":
-#     with Pool(4) as pool:
-#         results = pool.map(task1, list_text)
-#     # print(results)
+if __name__ == "__main__":
+    with Pool(4) as pool:
+        results = pool.map(task1, list_text)
+    # print(results)
 
-# # 此处可见这里返回的是一个list
+# 此处可见这里返回的是一个list
 
 '''
 这里成功最小模拟每个process 分个统计词频

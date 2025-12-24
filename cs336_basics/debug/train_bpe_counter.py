@@ -10,8 +10,19 @@ repeat until vocab_size reached:
 import regex as re 
 from collections import Counter
 from typing import NamedTuple
-from pretokenization_example import find_chunk_boundaries
-from multiprocessing import Pool, cpu_count
+from collections import Counter
+
+PAT2 = re.compile(r"""
+'(?:[sdmt]|ll|ve|re)
+| \ ?\p{L}+
+| \ ?\p{N}+
+| \ ?[^\s\p{L}\p{N}]+
+| \s+(?!\S)
+| \s+
+""", re.VERBOSE)
+
+
+
 
 def init_vocab(vocab_size:int,
                special_tokens:list[str]):
@@ -38,62 +49,44 @@ def split_on_special_tokens(text: str, special_tokens: list[str]) -> list[str]:
 
 def compute_frequency_with_special_token(text:str,
                       special_tokens: list[str]
-                      )->dict[str,int]:
+                      )->Counter[str]:
     
-    PAT2 = r"""
-    '(?:[sdmt]|ll|ve|re)
-    | \ ?\p{L}+
-    | \ ?\p{N}+
-    | \ ?[^\s\p{L}\p{N}]+
-    | \s+(?!\S)
-    | \s+
-    """
     chunks = split_on_special_tokens(text, special_tokens)
     
-    str_counts: dict[str,int] = {}
+    # str_counts: dict[str,int] = {}
     
+    # for chunk in chunks:
+    #     for m in re.finditer(PAT2, chunk, flags=re.VERBOSE):
+    #         tok = m.group(0)
+    #         str_counts[tok] = str_counts.get(tok, 0) + 1
+    
+    str_counts: Counter[str] = Counter()
     for chunk in chunks:
-        for m in re.finditer(PAT2, chunk, flags=re.VERBOSE):
-            tok = m.group(0)
-            str_counts[tok] = str_counts.get(tok, 0) + 1
+        for m in re.finditer(PAT2, chunk):
+            str_counts[m.group(0)] += 1
+        
     
     return  str_counts
 # (' lower', 2) -> (b'l', b'o', b'w'): 5
-def turn_into_bytes_count(str_counts:dict[str,int])->dict[tuple[bytes,...],int]:
-    bytes_counts: dict[tuple[bytes,...],int] = {}
+def turn_into_bytes_count(
+                           str_counts: Counter[str],
+                          )->Counter[tuple[bytes, ...]]:
+  
+    bytes_counts: Counter[tuple[bytes, ...]] = Counter()
     
     for key,value in str_counts.items():
         bytes_key = key.encode("utf-8")
         tuple_bytes_key = tuple(bytes([x]) for x in bytes_key)
-        bytes_counts[tuple_bytes_key] = bytes_counts.get(tuple_bytes_key, 0) + value
+        bytes_counts[tuple_bytes_key] += value
 
     
     return  bytes_counts
-'''
-input_path, start, end, special_tokens = args
-'''
-def parallel_worker(args)->dict[tuple[bytes,...],int]:
-    ''' 
-    原来是text 现在是 args boundary 要读出来  
-    '''
-    input_path, start, end, special_tokens = args
-    with open(input_path, "rb") as f:
-        f.seek(start)
-        chunk = f.read(end - start).decode("utf-8", errors="ignore")
-    
-        #('low', 1), (' low', 4)
-        str_counts: dict[str,int] = compute_frequency_with_special_token(text= chunk,special_tokens=special_tokens)
-        
-        #(b'l', b'o', b'w'): 5 因为不跨word 
-        bytes_counts: dict[tuple[bytes,...],int] = turn_into_bytes_count(str_counts=str_counts)
-
-    return bytes_counts
-    
-
 
 #(b'la', b'o', b'w'): 5 ->(b'la', b'o'):5 , (b'o', b'w'):5
-def calculate_pair_bytes_count(bytes_counts:dict[tuple[bytes,...],int])->dict[tuple[bytes,bytes],int]:
-    pair_bytes_dict = {}
+def calculate_pair_bytes_count(
+                            bytes_counts:Counter[tuple[bytes,...]]
+                            )->Counter[tuple[bytes, bytes]]:
+    pair_counts: Counter[tuple[bytes, bytes]] = Counter()
     for key,value in bytes_counts.items():
         key_len = len(key)
         '''
@@ -101,19 +94,21 @@ def calculate_pair_bytes_count(bytes_counts:dict[tuple[bytes,...],int])->dict[tu
         '''
         for x in range(key_len -1): 
             new_tuple = (key[x],key[x+1])
-            pair_bytes_dict[new_tuple] = pair_bytes_dict.get(new_tuple,0) + value
+            pair_counts[new_tuple] +=value
     
-    return pair_bytes_dict
+    return pair_counts
 
 # (b'l', b'o'):5,(b'a', b'b'):9,(b'c', b'd'):5  ->  (b'a', b'b')
-def get_highest_pair(pair_bytes_dict:dict[tuple[bytes,bytes],int])->tuple[bytes,bytes]:
+def get_highest_pair(
+                pair_bytes_Counter:Counter[tuple[bytes, bytes]]
+                )->tuple[bytes,bytes]:
     
     # sorted_pair_bytes_dict = sorted(pair_bytes_dict.items(),key=lambda x: (x[1],x[0]),reverse= True) 
     # # 这一步取 key (b'la', b'o')
     # max_value_key = sorted_pair_bytes_dict[0][0]
     
     # 这个版本更快
-    max_value_key = max(pair_bytes_dict.items(), key=lambda kv: (kv[1], kv[0]))[0]
+    max_value_key = max(pair_bytes_Counter.items(), key=lambda kv: (kv[1], kv[0]))[0]
 
 
     return max_value_key
@@ -165,54 +160,31 @@ def train_bpe(
     '''
     读取训练文本
     '''
-    
-    '''
-    首先这里读的是bytes了
-    '''
-    with open(input_path, "rb") as f:
-        num_processes = cpu_count()
-        # [100,200,300,400,500,600]
-        boundaries = find_chunk_boundaries(f, num_processes, b"<|endoftext|>")
-        '''
-        zip(
-                [0, 100, 230],
-                [100, 230, 400]
-            )
-        (0,100), (100,230), (230,400)
-        '''
-        worker_parameters:list = [(input_path,start,end,special_tokens)for start, end in zip(boundaries[:-1], boundaries[1:])]
+    with open(input_path, "r", encoding="utf-8") as f:
+        text = f.read()
         
-        bytes_counts: dict[tuple[bytes,...],int] = {}
+        #('low', 1), (' low', 4)
+        str_counts: Counter[str] = compute_frequency_with_special_token(text= text,special_tokens=special_tokens)
         
-        with Pool(num_processes) as pool:
-            for sub_dict in pool.map(parallel_worker,worker_parameters):
-              for key,value in sub_dict.items():
-                bytes_counts[key] = bytes_counts.get(key,0)+value
-        # #('low', 1), (' low', 4)
-        # str_counts: dict[str,int] = compute_frequency_with_special_token(text= text,special_tokens=special_tokens)
-        
-        # #(b'l', b'o', b'w'): 5 因为不跨word 
-        # bytes_counts: dict[tuple[bytes,...],int] = turn_into_bytes_count(str_counts=str_counts)
-        
-        
-        
+        #(b'l', b'o', b'w'): 5 因为不跨word 
+        bytes_counts: Counter[tuple[bytes,...]] = turn_into_bytes_count(str_counts=str_counts)
         
         for _ in range(num_merges):
             #(b'l', b'o'):5
-            pair_bytes_dict:dict[tuple[bytes,bytes],int] = calculate_pair_bytes_count(bytes_counts = bytes_counts)
-            if not pair_bytes_dict:
+            pair_bytes_Counter:Counter[tuple[bytes,bytes]] = calculate_pair_bytes_count(bytes_counts = bytes_counts)
+            if not pair_bytes_Counter:
                 break  # 没有任何pair可merge了  
-            highest_pair:tuple[bytes,bytes] = get_highest_pair(pair_bytes_dict=pair_bytes_dict)
+            highest_pair:tuple[bytes,bytes] = get_highest_pair(pair_bytes_Counter=pair_bytes_Counter)
             
             merged_bytes = highest_pair[0] + highest_pair[1]
             vocab[next_id] = merged_bytes
             merges.append(highest_pair)
             next_id += 1
                 
-            new_tuple_bytes_counts = {}
+            new_tuple_bytes_counts: Counter[tuple[bytes, ...]] = Counter()
             for tuple_bytes,value in bytes_counts.items():
                 new_tuple_bytes = merge_pair_in_token(token=tuple_bytes,pair= highest_pair)
-                new_tuple_bytes_counts[new_tuple_bytes] = new_tuple_bytes_counts.get(new_tuple_bytes,0) + value
+                new_tuple_bytes_counts[new_tuple_bytes] += value
 
             bytes_counts = new_tuple_bytes_counts
         return  vocab, merges
