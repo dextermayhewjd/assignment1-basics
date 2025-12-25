@@ -177,6 +177,7 @@ def train_bpe(
     # =========================
     # 【新增】计时
     # =========================
+    print("start train_bpe")
     start_time = time.time()
     
     vocab, next_id = init_vocab(
@@ -197,6 +198,7 @@ def train_bpe(
         num_processes = cpu_count()
         
         # [100,200,300,400,500,600]
+        print("start to find boundaries")
         boundaries = find_chunk_boundaries(f, num_processes, b"<|endoftext|>")
         '''
         zip(
@@ -220,7 +222,7 @@ def train_bpe(
         pair_bytes_Counter: Counter[tuple[bytes, bytes]]
         pair_bytes_Counter = calculate_pair_bytes_count(bytes_counts = bytes_counts)
         
-        
+        print("start to merge")
         # for _ in range(num_merges):
             #(b'l', b'o'):5
         for merge_idx in trange(
@@ -295,9 +297,6 @@ def train_bpe(
         # 【新增】训练结束统计
         # =========================
         elapsed = time.time() - start_time
-        print("\n[BPE DONE]")
-        print(f"  merges learned: {len(merges)}")
-        print(f"  vocab size: {len(vocab)}")
         print(f"  total time: {elapsed / 60:.2f} minutes")
         
         return  vocab, merges
