@@ -7,6 +7,7 @@ repeat until vocab_size reached:
     4. 更新所有 pre-token 中的序列
 """
 
+import shutil
 import regex as re 
 from collections import Counter
 from typing import NamedTuple
@@ -14,7 +15,11 @@ from cs336_basics.pretokenization_example import find_chunk_boundaries
 from multiprocessing import Pool, cpu_count
 from collections import defaultdict
 from tqdm import trange
+from tqdm import tqdm
 import time
+import tempfile
+import pickle
+from pathlib import Path
 
 PAT2 = re.compile(r"""
 '(?:[sdmt]|ll|ve|re)
@@ -195,11 +200,19 @@ def train_bpe(
     '''
     with open(input_path, "rb") as f:
         # 应该是20
-        num_processes = cpu_count()
+        num_processes = 10
         
         # [100,200,300,400,500,600]
         print("start to find boundaries")
-        boundaries = find_chunk_boundaries(f, num_processes, b"<|endoftext|>")
+        boundaries = find_chunk_boundaries(f, num_processes*20, b"<|endoftext|>")
+        print("boundaries founded")
+        
+        # print("\n=== CHUNK BOUNDARIES ===")
+        # print(f"num boundaries: {len(boundaries)}  (→ {len(boundaries)-1} chunks)")
+        # for i, (s, e) in enumerate(zip(boundaries[:-1], boundaries[1:])):
+        #     print(f"chunk {i:02d}: [{s:,} → {e:,}]  size={(e-s)/1024/1024:.2f} MB")
+        # print("=========================\n")
+        
         '''
         zip(
                 [0, 100, 230],
@@ -211,13 +224,67 @@ def train_bpe(
         
         # 这个是原来的dict版本现在换成Counter 可以直接加
         # bytes_counts: dict[tuple[bytes,...],int] = {}
+
+#12-25z 之前的1        
+        # bytes_counts:Counter[tuple[bytes,...]] = Counter()
+        # with Pool(num_processes) as pool:
+        #       sub_counters = pool.map(parallel_worker,worker_parameters)
+        # bytes_counts = sum(sub_counters,Counter())
         
-        bytes_counts:Counter[tuple[bytes,...]] = Counter()
+#12-25z 之后的2               
+        # bytes_counts:Counter[tuple[bytes,...]] = Counter()
+        # with Pool(num_processes) as pool:
+        #     for sub in tqdm(
+        #         pool.imap_unordered(parallel_worker, worker_parameters, chunksize=1),
+        #         total=len(worker_parameters),
+        #         desc="Pretokenize chunks",
+        #     ):
+        #         bytes_counts += sub
+# 使用mapreduce方式 处理 3
+        
+        tmp_dir = Path(tempfile.mkdtemp(prefix="bpe_mapreduce_"))
+        print(f"[MapReduce] spill directory: {tmp_dir}")
+
+        paths = []        # 记录所有 map 输出文件路径
+
+        # ---------------- MAP（并行）----------------
         with Pool(num_processes) as pool:
-              sub_counters = pool.map(parallel_worker,worker_parameters)
-        bytes_counts = sum(sub_counters,Counter())
-        
-        
+            for i, sub in enumerate(
+                tqdm(
+                    pool.imap_unordered(parallel_worker, worker_parameters, chunksize=1),
+                    total=len(worker_parameters),
+                    desc="Pretokenize (map)"
+                )
+            ):
+                path = tmp_dir / f"part_{i:04d}.pkl"
+                with open(path, "wb") as f:
+                    pickle.dump(sub, f, protocol=pickle.HIGHEST_PROTOCOL)
+                paths.append(path)
+
+        # ---------------- REDUCE（串行、流式）----------------
+        bytes_counts: Counter[tuple[bytes, ...]] = Counter()
+
+        BATCH = 16        # 每 16 份做一次“局部 reduce”
+        batch = []
+
+        for path in tqdm(paths, desc="Reduce"):
+            with open(path, "rb") as f:
+                batch.append(pickle.load(f))
+
+            if len(batch) >= BATCH:
+                # 局部 reduce（树状）
+                local = sum(batch, Counter())
+                bytes_counts += local
+                batch.clear()
+
+        # 剩余的再收一次
+        if batch:
+            local = sum(batch, Counter())
+            bytes_counts += local
+
+        # （可选）清理 tmp
+        shutil.rmtree(tmp_dir)        
+                
         # 初始化  (b'l', b'o'):5
         pair_bytes_Counter: Counter[tuple[bytes, bytes]]
         pair_bytes_Counter = calculate_pair_bytes_count(bytes_counts = bytes_counts)

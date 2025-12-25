@@ -13,16 +13,16 @@ from cs336_basics.debug.parallel_train_bpe_cache import train_bpe
 # =========================
 # CONFIG
 # =========================
-TINYSTORIES_PATH = "/home/dexterding/data/TinyStoriesV2-GPT4-train.txt"
-VOCAB_SIZE = 10_000
+TINYSTORIES_PATH = "/home/dexterding/data/owt_train.txt"
+VOCAB_SIZE = 32_000
 SPECIAL_TOKENS = ["<|endoftext|>"]
 
 OUT_DIR = Path("/home/dexterding/projects/assignment1-basics/bpe_outputs")
 OUT_DIR.mkdir(parents=True, exist_ok=True)
 
-VOCAB_PATH = OUT_DIR / "tinystories_vocab.pkl"
-MERGES_PATH = OUT_DIR / "tinystories_merges.pkl"
-PROFILE_PATH = OUT_DIR / "profile.txt"
+VOCAB_PATH = OUT_DIR / "owt_vocab.pkl"
+MERGES_PATH = OUT_DIR / "owt_merges.pkl"
+PROFILE_PATH = OUT_DIR / "profile_owt.txt"
 
 
 # =========================
@@ -79,7 +79,7 @@ class PeakMemMonitor:
 def run_train(profile: bool):
     start_time = time.time()
 
-    # 你原来的“主进程净增RSS”（保留做对比）
+    # 原来的“主进程净增RSS”（保留做对比）
     start_rss_main = _PARENT.memory_info().rss
 
     with PeakMemMonitor(interval_sec=0.2) as mon:
@@ -121,10 +121,10 @@ def run_train(profile: bool):
     print("\n=== RESULTS ===")
     print(f"Training time (this run): {(end_time - start_time)/60:.2f} minutes")
 
-    # ✅ 重点：峰值（主进程+子进程）
+    # 峰值（主进程+子进程）
     print(f"Peak RSS (main + children): {_gb(mon.peak_bytes):.2f} GB")
 
-    # 可选：保留你原来那种“净增”（通常会小得离谱，用来对比就好）
+    # 可选：保留原来那种“净增”（通常会小得离谱，用来对比就好）
     print(f"Main RSS delta (end-start): {_gb(end_rss_main - start_rss_main):.2f} GB")
 
     print(f"Vocab size: {len(vocab)} | merges: {len(merges)}")
