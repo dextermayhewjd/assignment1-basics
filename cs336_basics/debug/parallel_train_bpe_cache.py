@@ -58,14 +58,7 @@ def compute_frequency_with_special_token(text:str,
                       )->Counter[str]:
     
     chunks = split_on_special_tokens(text, special_tokens)
-    
-    # str_counts: dict[str,int] = {}
-    
-    # for chunk in chunks:
-    #     for m in re.finditer(PAT2, chunk, flags=re.VERBOSE):
-    #         tok = m.group(0)
-    #         str_counts[tok] = str_counts.get(tok, 0) + 1
-    
+        
     str_counts: Counter[str] = Counter()
     for chunk in chunks:
         for m in re.finditer(PAT2, chunk):
@@ -73,20 +66,21 @@ def compute_frequency_with_special_token(text:str,
         
     
     return  str_counts
+
 # (' lower', 2) -> (b'l', b'o', b'w'): 5
-def turn_into_bytes_count(
+def turn_into_bytes_seq_counter(
                            str_counts: Counter[str],
                           )->Counter[tuple[bytes, ...]]:
   
-    bytes_counts: Counter[tuple[bytes, ...]] = Counter()
+    bytes_seq_counter: Counter[tuple[bytes, ...]] = Counter()
     
     for key,value in str_counts.items():
         bytes_key = key.encode("utf-8")
         tuple_bytes_key = tuple(bytes([x]) for x in bytes_key)
-        bytes_counts[tuple_bytes_key] += value
+        bytes_seq_counter[tuple_bytes_key] += value
 
     
-    return  bytes_counts
+    return  bytes_seq_counter
 '''
 input_path, start, end, special_tokens = args
 '''
@@ -103,34 +97,40 @@ def parallel_worker(args)->dict[tuple[bytes,...],int]:
         str_counts: Counter[str] = compute_frequency_with_special_token(text= chunk,special_tokens=special_tokens)
         
         #(b'l', b'o', b'w'): 5 因为不跨word 
-        bytes_counts: Counter[tuple[bytes,...]] = turn_into_bytes_count(str_counts=str_counts)
+        bytes_seq_counter: Counter[tuple[bytes,...]] = turn_into_bytes_seq_counter(str_counts=str_counts)
 
-    return bytes_counts
+    return bytes_seq_counter
     
 
 
 #(b'la', b'o', b'w'): 5 ->(b'la', b'o'):5 , (b'o', b'w'):5
 #加上 初始化pair2seq 的dict                       
-def calculate_pair_bytes_count(
-                            bytes_counts:Counter[tuple[bytes,...]]
-                            )->Counter[tuple[bytes, bytes]]:
+def calculate_pair_bytes_seq_counter(
+                            bytes_seq_counter:Counter[tuple[bytes,...]]
+                            )->tuple[Counter[tuple[bytes, bytes]],
+                                     dict[tuple[bytes,bytes],set[tuple[bytes,...]]]]:
     
-    pair_counts: Counter[tuple[bytes, bytes]] = Counter()
-
-    for key,value in bytes_counts.items():
+    bytes_pair_counter: Counter[tuple[bytes, bytes]] = Counter()
+    
+    pair2seq_dict:dict[
+                    tuple[bytes,bytes],
+                    set[tuple[bytes,...]
+                                        ]] = defaultdict(set)
+    
+    for key,value in bytes_seq_counter.items():
         key_len = len(key)
         '''
         当所有 token 序列长度都 ≤ 1 时, pair 统计会返回空字典，训练循环应该停止。
         '''
         for x in range(key_len -1): 
             new_tuple = (key[x],key[x+1])
-            pair_counts[new_tuple] +=value
-            # pair2seq_dict[new_tuple].add(key)
-    return pair_counts
+            bytes_pair_counter[new_tuple] +=value
+            pair2seq_dict[new_tuple].add(key)
+    return bytes_pair_counter, pair2seq_dict
 
 # (b'l', b'o'):5,(b'a', b'b'):9,(b'c', b'd'):5  ->  (b'a', b'b')
 def get_highest_pair(
-                pair_bytes_Counter:Counter[tuple[bytes, bytes]]
+                bytes_pair_counter:Counter[tuple[bytes, bytes]]
                 )->tuple[bytes,bytes]:
     
     # sorted_pair_bytes_dict = sorted(pair_bytes_dict.items(),key=lambda x: (x[1],x[0]),reverse= True) 
@@ -138,7 +138,7 @@ def get_highest_pair(
     # max_value_key = sorted_pair_bytes_dict[0][0]
     
     # 这个版本更快
-    max_value_key = max(pair_bytes_Counter.items(), key=lambda kv: (kv[1], kv[0]))[0]
+    max_value_key = max(bytes_pair_counter.items(), key=lambda kv: (kv[1], kv[0]))[0]
 
 
     return max_value_key
@@ -159,7 +159,7 @@ def merge_pair_in_token(token:tuple[bytes,...],
     return tuple(result)
 '''
 重点想好哪里开始更新
-应该是每次更新的是bytes_counts
+应该是每次更新的是bytes_seq_counter
 '''
 
 class BPETrainResult(NamedTuple):
@@ -223,23 +223,23 @@ def train_bpe(
         worker_parameters:list = [(input_path,start,end,special_tokens)for start, end in zip(boundaries[:-1], boundaries[1:])]
         
         # 这个是原来的dict版本现在换成Counter 可以直接加
-        # bytes_counts: dict[tuple[bytes,...],int] = {}
+        # bytes_seq_counter: dict[tuple[bytes,...],int] = {}
 
 #12-25z 之前的1        
-        # bytes_counts:Counter[tuple[bytes,...]] = Counter()
+        # bytes_seq_counter:Counter[tuple[bytes,...]] = Counter()
         # with Pool(num_processes) as pool:
         #       sub_counters = pool.map(parallel_worker,worker_parameters)
-        # bytes_counts = sum(sub_counters,Counter())
+        # bytes_seq_counter = sum(sub_counters,Counter())
         
 #12-25z 之后的2               
-        # bytes_counts:Counter[tuple[bytes,...]] = Counter()
+        # bytes_seq_counter:Counter[tuple[bytes,...]] = Counter()
         # with Pool(num_processes) as pool:
         #     for sub in tqdm(
         #         pool.imap_unordered(parallel_worker, worker_parameters, chunksize=1),
         #         total=len(worker_parameters),
         #         desc="Pretokenize chunks",
         #     ):
-        #         bytes_counts += sub
+        #         bytes_seq_counter += sub
 # 使用mapreduce方式 处理 3
         
         tmp_dir = Path(tempfile.mkdtemp(prefix="bpe_mapreduce_"))
@@ -262,7 +262,7 @@ def train_bpe(
                 paths.append(path)
 
         # ---------------- REDUCE（串行、流式）----------------
-        bytes_counts: Counter[tuple[bytes, ...]] = Counter()
+        bytes_seq_counter: Counter[tuple[bytes, ...]] = Counter()
 
         BATCH = 16        # 每 16 份做一次“局部 reduce”
         batch = []
@@ -274,20 +274,20 @@ def train_bpe(
             if len(batch) >= BATCH:
                 # 局部 reduce（树状）
                 local = sum(batch, Counter())
-                bytes_counts += local
+                bytes_seq_counter += local
                 batch.clear()
 
         # 剩余的再收一次
         if batch:
             local = sum(batch, Counter())
-            bytes_counts += local
+            bytes_seq_counter += local
 
         # （可选）清理 tmp
         shutil.rmtree(tmp_dir)        
                 
         # 初始化  (b'l', b'o'):5
-        pair_bytes_Counter: Counter[tuple[bytes, bytes]]
-        pair_bytes_Counter = calculate_pair_bytes_count(bytes_counts = bytes_counts)
+        bytes_pair_counter: Counter[tuple[bytes, bytes]]
+        bytes_pair_counter,pair2seq_dict = calculate_pair_bytes_seq_counter(bytes_seq_counter = bytes_seq_counter)
         
         print("start to merge")
         # for _ in range(num_merges):
@@ -299,12 +299,14 @@ def train_bpe(
         ):    
             # pair2seq_dict: dict[tuple[bytes, bytes], set[tuple[bytes, ...]]]
 
-            if not pair_bytes_Counter:
+            if not bytes_pair_counter:
                 break  # 没有任何pair可merge了  
-            highest_pair:tuple[bytes,bytes] = get_highest_pair(pair_bytes_Counter=pair_bytes_Counter)
+            highest_pair:tuple[bytes,bytes] = get_highest_pair(bytes_pair_counter=bytes_pair_counter)
+            # set [bytes_seq_counter,...]
+            afftected_token = pair2seq_dict.get(highest_pair, set())
             
-            a, b = highest_pair
-            merged_bytes = a + b 
+            a, b = highest_pair # b'a' , b'b'
+            merged_bytes = a + b  # b'ab'
             
             
             vocab[next_id] = merged_bytes
@@ -313,45 +315,60 @@ def train_bpe(
             
             '''
             首先 merge 只merge 需要merge的
-            merge 会怎么影响 bytes_counts  (b'la', b'o', b'w'): 5 ->(b'la', b'o'):5
-                            和pair_bytes_Counter(b'l', b'o'):5
+            merge 会怎么影响 bytes_seq_counter  (b'la', b'o', b'w'): 5 ->(b'la', b'o'):5
+                            和bytes_pair_counter(b'l', b'o'):5
             '''
-            for token, freq in list(bytes_counts.items()):
+            for token in list(afftected_token):
+                    freq = bytes_seq_counter[token]
                     i = 0
-                    new_token = []
-                    changed = False
-
-                    while i < len(token):
-                        if i < len(token) - 1 and token[i] == a and token[i+1] == b:
-                            left = token[i-1] if i > 0 else None
-                            right = token[i+2] if i + 2 < len(token) else None
-
-                            # 1️⃣ 减旧 pair
-                            pair_bytes_Counter[(a, b)] -= freq
-                            if left is not None:
-                                pair_bytes_Counter[(left, a)] -= freq
-                                pair_bytes_Counter[(left, merged_bytes)] += freq
-                            if right is not None:
-                                pair_bytes_Counter[(b, right)] -= freq
-                                pair_bytes_Counter[(merged_bytes, right)] += freq
-
-                            # 2️⃣ 再真的 merge
+                    new_token = []                   
+                    token_length = len(token)
+                    
+                    while i < token_length:
+                        
+                        if i < token_length - 1 and token[i] == a and token[i+1] == b:
+                            
                             new_token.append(merged_bytes)
                             i += 2
-                            changed = True
                             
                         else:
                             new_token.append(token[i])
-                            i +=1
-                    if changed:
-                        bytes_counts.pop(token)
-                        bytes_counts[tuple(new_token)] += freq
+                            i += 1
+                            
+                    old_token = token
+                    new_token = tuple(new_token)    
+                    
+                    for j in range(len(old_token) - 1):
+                        
+                        p = (old_token[j], old_token[j+1])
+                        bytes_pair_counter[p] -= freq
+                        
+                        if bytes_pair_counter[p] == 0:
+                            bytes_pair_counter.pop(p)
+
+                    for j in range(len(new_token) - 1):
+                        p = (new_token[j], new_token[j+1])
+                        bytes_pair_counter[p] += freq        
+                        
+
+                    
+                    #  bytes_seq_counter
+                    bytes_seq_counter.pop(old_token)
+                    bytes_seq_counter[new_token] += freq
+                    
+                    #  从 pair2seq_dict 移除 old token
+                    for j in range(len(old_token) - 1):
+                        pair2seq_dict[(old_token[j], old_token[j+1])].discard(old_token)    
+                    
+                    #  加入 new token 的所有 pair
+                    for j in range(len(new_token) - 1):
+                        pair2seq_dict[(new_token[j], new_token[j+1])].add(new_token)
             # ==================================================
             # 【新增】更有信息量的统计（每 500 次）
             # ==================================================
             if merge_idx % 500 == 0 and merge_idx > 0:
                 longest = max(len(tok) for tok in vocab.values())
-                top_freq = pair_bytes_Counter.get(highest_pair, 0)
+                top_freq = bytes_pair_counter.get(highest_pair, 0)
 
                 print(
                     f"\n[BPE] merge {merge_idx}/{num_merges} | "
