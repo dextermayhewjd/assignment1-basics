@@ -1,6 +1,6 @@
 import pickle
 
-VOCAB_PATH = "bpe_outputs/tinystories_vocab.pkl"  # 改成你的路径
+VOCAB_PATH = "/home/dexterding/projects/assignment1-basics/bpe_outputs/owt_vocab.pkl"  # 改成你的路径
 
 with open(VOCAB_PATH, "rb") as f:
     vocab = pickle.load(f)

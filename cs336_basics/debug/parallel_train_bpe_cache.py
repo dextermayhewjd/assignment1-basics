@@ -325,12 +325,9 @@ def train_bpe(
                     token_length = len(token)
                     
                     while i < token_length:
-                        
                         if i < token_length - 1 and token[i] == a and token[i+1] == b:
-                            
                             new_token.append(merged_bytes)
                             i += 2
-                            
                         else:
                             new_token.append(token[i])
                             i += 1
@@ -339,18 +336,14 @@ def train_bpe(
                     new_token = tuple(new_token)    
                     
                     for j in range(len(old_token) - 1):
-                        
                         p = (old_token[j], old_token[j+1])
                         bytes_pair_counter[p] -= freq
-                        
                         if bytes_pair_counter[p] == 0:
                             bytes_pair_counter.pop(p)
 
                     for j in range(len(new_token) - 1):
                         p = (new_token[j], new_token[j+1])
                         bytes_pair_counter[p] += freq        
-                        
-
                     
                     #  bytes_seq_counter
                     bytes_seq_counter.pop(old_token)
@@ -358,11 +351,23 @@ def train_bpe(
                     
                     #  从 pair2seq_dict 移除 old token
                     for j in range(len(old_token) - 1):
-                        pair2seq_dict[(old_token[j], old_token[j+1])].discard(old_token)    
+                        pair = (old_token[j], old_token[j+1])
+                        seq_set = pair2seq_dict.get(pair)
+                        if seq_set is not None:
+                            seq_set.discard(old_token)
+
+                        # 如果全局计数里已经没有它了（被 pop 或为 0），并且集合也空，就删 key
+                        if (pair not in bytes_pair_counter or bytes_pair_counter.get(pair, 0) == 0) and not seq_set:
+                            pair2seq_dict.pop(pair, None)    
                     
                     #  加入 new token 的所有 pair
                     for j in range(len(new_token) - 1):
-                        pair2seq_dict[(new_token[j], new_token[j+1])].add(new_token)
+                        pair = (new_token[j], new_token[j + 1])
+                        pair2seq_dict.setdefault(pair, set()).add(new_token)
+                        
+            if highest_pair not in bytes_pair_counter or bytes_pair_counter.get(highest_pair, 0) == 0:
+                pair2seq_dict.pop(highest_pair, None)
+                        
             # ==================================================
             # 【新增】更有信息量的统计（每 500 次）
             # ==================================================
