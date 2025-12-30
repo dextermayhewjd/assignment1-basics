@@ -1,4 +1,4 @@
-from cs336_basics.debug.tokenizer import Tokenizer
+from cs336_basics.final_solutions.tokenizer import Tokenizer
 from pathlib import Path
 
 BPE_DIR = Path("/home/dexterding/projects/assignment1-basics/bpe_outputs")

@@ -20,7 +20,7 @@ import psutil
 import cProfile
 import pstats
 from pathlib import Path
-from cs336_basics.debug.parallel_train_bpe_cache import train_bpe
+from cs336_basics.final_solutions.parallel_train_bpe_cache import train_bpe
 
 # =========================
 # CONFIG
