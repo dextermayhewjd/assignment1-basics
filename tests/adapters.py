@@ -11,6 +11,10 @@ from torch import Tensor
 
 from cs336_basics.final_solutions.parallel_train_bpe_cache import train_bpe
 from cs336_basics.final_solutions.tokenizer2 import Tokenizer
+
+from cs336_basics.transformer_modules.linear_module import Linear 
+from cs336_basics.transformer_modules.embedding_module import Embedding
+from cs336_basics.transformer_modules.rmsnorm_module import RMSNorm
 def run_linear(
     d_in: int,
     d_out: int,
@@ -29,7 +33,10 @@ def run_linear(
     Returns:
         Float[Tensor, "... d_out"]: The transformed output of your linear module.
     """
-
+    linear = Linear(in_features=d_in,out_features=d_out)
+    linear.load_state_dict({"W":weights})
+    
+    return linear.forward(in_features) 
     raise NotImplementedError
 
 
@@ -51,7 +58,9 @@ def run_embedding(
     Returns:
         Float[Tensor, "... d_model"]: Batch of embeddings returned by your Embedding layer.
     """
-
+    embedding = Embedding(num_embeddings=vocab_size,embedding_dim=d_model)
+    embedding.load_state_dict({"weights":weights})
+    return embedding.forward(token_ids=token_ids)
     raise NotImplementedError
 
 
@@ -379,6 +388,10 @@ def run_rmsnorm(
         Float[Tensor,"... d_model"]: Tensor of with the same shape as `in_features` with the output of running
         RMSNorm of the `in_features`.
     """
+    rmsnorm = RMSNorm(d_model=d_model,eps=eps)
+    rmsnorm.load_state_dict({"weights":weights})
+    return rmsnorm.forward(in_features)
+    
     raise NotImplementedError
 
 
