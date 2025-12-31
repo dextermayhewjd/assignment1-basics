@@ -15,6 +15,8 @@ from cs336_basics.final_solutions.tokenizer2 import Tokenizer
 from cs336_basics.transformer_modules.linear_module import Linear 
 from cs336_basics.transformer_modules.embedding_module import Embedding
 from cs336_basics.transformer_modules.rmsnorm_module import RMSNorm
+
+from cs336_basics.transformer_modules.positionwise_feedforward_moudule import SwiGLU_feed_forward
 def run_linear(
     d_in: int,
     d_out: int,
@@ -93,6 +95,11 @@ def run_swiglu(
     # swiglu.w1.weight.data = w1_weight
     # swiglu.w2.weight.data = w2_weight
     # swiglu.w3.weight.data = w3_weight
+    swiglu = SwiGLU_feed_forward(d_model=d_model,d_ff=d_ff)
+    swiglu.load_state_dict({"linear_1.W":w1_weight,
+                            "linear_2.W":w2_weight,
+                            "linear_3.W":w3_weight})
+    return swiglu(in_features)
     raise NotImplementedError
 
 
@@ -406,6 +413,7 @@ def run_silu(in_features: Float[Tensor, " ..."]) -> Float[Tensor, " ..."]:
         Float[Tensor,"..."]: of with the same shape as `in_features` with the output of applying
         SiLU to each element.
     """
+
     raise NotImplementedError
 
 

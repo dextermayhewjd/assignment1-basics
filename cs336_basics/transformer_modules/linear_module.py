@@ -1,6 +1,7 @@
 import torch
 import torch.nn as nn  
 import math
+from einops import einsum
 
 class Linear(nn.Module):
     def __init__(self,
@@ -30,4 +31,6 @@ class Linear(nn.Module):
 
         
     def forward(self,x:torch.Tensor)->torch.Tensor:
-        return x@self.W.T
+        # return x@self.W.T
+        
+        return einsum(x,self.W,'batch sequence in_f, out_f in_f -> batch sequence out_f')

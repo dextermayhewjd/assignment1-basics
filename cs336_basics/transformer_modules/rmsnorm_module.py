@@ -1,6 +1,9 @@
 import torch
 import torch.nn as nn 
 import math 
+from einops import reduce
+
+
 class RMSNorm(nn.Module):
     '''
         d_model: int Hidden dimension of the model
@@ -35,7 +38,15 @@ class RMSNorm(nn.Module):
         等价于下面的公式 我觉得还是下面的比较好识别 
         同时记住要keepdim = True 
         '''
-        rms = torch.sqrt(x.pow(2).sum(dim=-1,keepdim= True)/self.d_model + self.eps )
+        # rms = torch.sqrt(x.pow(2).sum(dim=-1,keepdim= True)/self.d_model + self.eps )
+        
+        '''
+        如果使用einops
+        '''
+        
+        mean_square = reduce(x.pow(2), "batch sequence d_model -> batch sequence 1", "mean")
+        rms = torch.sqrt(mean_square+self.eps)
+        
         '''
         !!! math.sqrt 不支持sqrt batch tensor 得需要用torch。sqrt
         '''
