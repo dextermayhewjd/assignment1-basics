@@ -20,6 +20,7 @@ from cs336_basics.transformer_modules.positionwise_feedforward_moudule import Sw
 from cs336_basics.transformer_modules.softmax_module import softmax
 
 from cs336_basics.transformer_modules.rope_module import RoPE
+from cs336_basics.transformer_modules.scaled_dot_product_attention import scale_dot_product_attention
 def run_linear(
     d_in: int,
     d_out: int,
@@ -124,6 +125,7 @@ def run_scaled_dot_product_attention(
     Returns:
         Float[Tensor, " ... queries d_v"]: Output of SDPA
     """
+    return scale_dot_product_attention(Q=Q,K=K,V=V,mask=mask)
     raise NotImplementedError
 
 

@@ -53,9 +53,7 @@ class RoPE(nn.Module):
         cos = self.cos_cached[token_positions]  # (..., seq_len, d_k/2)
         sin = self.sin_cached[token_positions]  # (..., seq_len, d_k/2)
         
-        
         # cos/sin: (..., seq_len, d_k)
-        
         
         cos = cos.repeat_interleave(2, dim=-1).to(dtype=x.dtype)
         sin = sin.repeat_interleave(2, dim=-1).to(dtype=x.dtype)
