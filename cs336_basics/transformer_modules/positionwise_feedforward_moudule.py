@@ -21,12 +21,14 @@ class SwiGLU_feed_forward(nn.Module):
     def forward(self,x:torch.Tensor)->torch.Tensor:
         part1 = self.linear_1(x)
         part3 = self.linear_3(x)
-        
+        # SiLU(W1x)
         silu_part1 = torch.sigmoid(part1) * part1
         
-        
-        mid_part = einsum(silu_part1,part3,
+        # 逐元素相乘 SiLU(W1​x)⊙(W3​x)
+        glu_part = einsum(silu_part1,part3,
                   "batch sequence out_f ,batch sequence out_f -> batch sequence out_f")
-        final_part = self.linear_2(mid_part)
+        
+        # SwiGLU
+        final_part = self.linear_2(glu_part)
         
         return final_part

@@ -17,6 +17,7 @@ from cs336_basics.transformer_modules.embedding_module import Embedding
 from cs336_basics.transformer_modules.rmsnorm_module import RMSNorm
 
 from cs336_basics.transformer_modules.positionwise_feedforward_moudule import SwiGLU_feed_forward
+from cs336_basics.transformer_modules.softmax_module import softmax
 def run_linear(
     d_in: int,
     d_out: int,
@@ -453,6 +454,7 @@ def run_softmax(in_features: Float[Tensor, " ..."], dim: int) -> Float[Tensor, "
         Float[Tensor, "..."]: Tensor of with the same shape as `in_features` with the output of
         softmax normalizing the specified `dim`.
     """
+    return softmax(in_features=in_features,dimension=dim)
     raise NotImplementedError
 
 
