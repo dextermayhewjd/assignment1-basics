@@ -18,6 +18,8 @@ from cs336_basics.transformer_modules.rmsnorm_module import RMSNorm
 
 from cs336_basics.transformer_modules.positionwise_feedforward_moudule import SwiGLU_feed_forward
 from cs336_basics.transformer_modules.softmax_module import softmax
+
+from cs336_basics.transformer_modules.rope_module import RoPE
 def run_linear(
     d_in: int,
     d_out: int,
@@ -218,6 +220,8 @@ def run_rope(
     Returns:
         Float[Tensor, " ... sequence_length d_k"]: Tensor with RoPEd input.
     """
+    rope = RoPE(theta=theta,d_k=d_k,max_seq_len=max_seq_len,)
+    return rope.forward(x=in_query_or_key,token_positions=token_positions)
     raise NotImplementedError
 
 
