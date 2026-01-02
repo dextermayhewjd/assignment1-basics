@@ -21,6 +21,7 @@ from cs336_basics.transformer_modules.softmax_module import softmax
 
 from cs336_basics.transformer_modules.rope_module import RoPE
 from cs336_basics.transformer_modules.scaled_dot_product_attention import scale_dot_product_attention
+from cs336_basics.transformer_modules.multihead_self_attention import Multihead_Self_Attention
 def run_linear(
     d_in: int,
     d_out: int,
@@ -160,6 +161,13 @@ def run_multihead_self_attention(
         Float[Tensor, " ... sequence_length d_out"]: Tensor with the output of running your optimized, batched multi-headed attention
         implementation with the given QKV projection weights and input features.
     """
+    multihead_self_attention = Multihead_Self_Attention(d_model=d_model,num_heads=num_heads)
+    multihead_self_attention.load_state_dict({"w_Q":q_proj_weight,
+                                              "w_K":k_proj_weight,
+                                              "w_V":v_proj_weight,
+                                              "w_O":o_proj_weight
+                                              })
+    return multihead_self_attention.forward(x=in_features)
     raise NotImplementedError
 
 
@@ -200,6 +208,7 @@ def run_multihead_self_attention_with_rope(
         Float[Tensor, " ... sequence_length d_out"]: Tensor with the output of running your optimized, batched multi-headed attention
         implementation with the given QKV projection weights and input features.
     """
+    
     raise NotImplementedError
 
 
