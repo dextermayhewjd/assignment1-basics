@@ -22,6 +22,11 @@ from cs336_basics.transformer_modules.softmax_module import softmax
 from cs336_basics.transformer_modules.rope_module import RoPE
 from cs336_basics.transformer_modules.scaled_dot_product_attention import scale_dot_product_attention
 from cs336_basics.transformer_modules.multihead_self_attention import Multihead_Self_Attention
+
+from cs336_basics.transformer_modules.multihead_self_attention_with_rope import MultiheadSelfAttentionWithRope
+
+from cs336_basics.transformer_assembling.transformer_block import Transformer_Block
+from cs336_basics.transformer_assembling.transformer_language_model import Transformer_LM 
 def run_linear(
     d_in: int,
     d_out: int,
@@ -208,7 +213,19 @@ def run_multihead_self_attention_with_rope(
         Float[Tensor, " ... sequence_length d_out"]: Tensor with the output of running your optimized, batched multi-headed attention
         implementation with the given QKV projection weights and input features.
     """
-    
+    mha_with_rope = MultiheadSelfAttentionWithRope(
+        d_model=d_model,
+        num_heads=num_heads,
+        theta=theta,
+        max_seq_len=max_seq_len
+    )
+    mha_with_rope.load_state_dict({
+        "w_Q":q_proj_weight,
+        "w_K":k_proj_weight,
+        "w_V":v_proj_weight,
+        "w_O":o_proj_weight
+    })
+    return mha_with_rope.forward(x=in_features,token_positions=token_positions)
     raise NotImplementedError
 
 
@@ -306,6 +323,31 @@ def run_transformer_block(
         Float[Tensor, "batch sequence_length d_model"] Tensor with the output of
         running the Transformer block on the input features while using RoPE.
     """
+    transformer_block = Transformer_Block(
+        d_model=d_model,
+        num_heads=num_heads,
+        d_ff=d_ff,
+        max_seq_len=max_seq_len,
+        theta=theta
+        )
+    
+    transformer_block.load_state_dict({
+        "mha_r.w_Q":weights["attn.q_proj.weight"],
+        "mha_r.w_K":weights["attn.k_proj.weight"],
+        "mha_r.w_V":weights["attn.v_proj.weight"],
+        "mha_r.w_O":weights["attn.output_proj.weight"],
+        "swiglu_ff.linear_1.W":weights["ffn.w1.weight"],
+        "swiglu_ff.linear_2.W":weights["ffn.w2.weight"],
+        "swiglu_ff.linear_3.W":weights["ffn.w3.weight"],
+        "rmsnorm_1.weights":weights["ln1.weight"],
+        "rmsnorm_2.weights":weights["ln2.weight"]
+        
+    })
+    
+    '''
+    一定 左边的 key要load到nn.parameter 那一层
+    '''
+    return transformer_block.forward(x=in_features)
     raise NotImplementedError
 
 
@@ -388,6 +430,53 @@ def run_transformer_lm(
         Float[Tensor, "batch_size sequence_length vocab_size"]: Tensor with the predicted unnormalized
         next-word distribution for each token.
     """
+    transformer_lm = Transformer_LM(vocab_size=vocab_size,
+                                    context_length=context_length,
+                                    d_model=d_model,
+                                    num_layers=num_layers,
+                                    num_heads=num_heads,
+                                    d_ff=d_ff,
+                                    rope_theta=rope_theta
+                                    )
+    
+    
+    
+    for layer_idx,block in enumerate(transformer_lm.blocks):
+        prefix = f'layers.{layer_idx}'
+        block.load_state_dict({
+        # Attention
+        "mha_r.w_Q": weights[f"{prefix}.attn.q_proj.weight"],
+        "mha_r.w_K": weights[f"{prefix}.attn.k_proj.weight"],
+        "mha_r.w_V": weights[f"{prefix}.attn.v_proj.weight"],
+        "mha_r.w_O": weights[f"{prefix}.attn.output_proj.weight"],
+
+        # FFN (SwiGLU)
+        "swiglu_ff.linear_1.W": weights[f"{prefix}.ffn.w1.weight"],
+        "swiglu_ff.linear_2.W": weights[f"{prefix}.ffn.w2.weight"],
+        "swiglu_ff.linear_3.W": weights[f"{prefix}.ffn.w3.weight"],
+
+        # RMSNorms
+        "rmsnorm_1.weights": weights[f"{prefix}.ln1.weight"],
+        "rmsnorm_2.weights": weights[f"{prefix}.ln2.weight"],
+        },strict=True)
+        
+    transformer_lm.embedding.load_state_dict(
+    {"weights": weights["token_embeddings.weight"]},
+    strict=True
+    )
+
+    transformer_lm.norm.load_state_dict(
+        {"weights": weights["ln_final.weight"]},
+        strict=True
+    )
+
+    transformer_lm.lm_head.load_state_dict(
+        {"W": weights["lm_head.weight"]},
+        strict=True
+    )
+        
+    softmaxed_logits = transformer_lm(in_indices)
+    return softmaxed_logits
     raise NotImplementedError
 
 

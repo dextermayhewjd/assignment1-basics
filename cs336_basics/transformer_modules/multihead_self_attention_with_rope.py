@@ -1,34 +1,23 @@
 import torch
 import torch.nn as nn 
-
-from jaxtyping import Float
-from torch import Tensor
-import math
+from cs336_basics.transformer_modules.multihead_self_attention import Multihead_Self_Attention
+from cs336_basics.transformer_modules.rope_module import RoPE
 from einops import einsum,rearrange
-
 from cs336_basics.transformer_modules.scaled_dot_product_attention import scale_dot_product_attention
-class Multihead_Self_Attention(nn.Module):
+
+class MultiheadSelfAttentionWithRope(Multihead_Self_Attention):
     def __init__(self,
                  d_model:int,
-                 num_heads:int):
-        super().__init__()
-        self.d_model = d_model
-        self.num_heads = num_heads
-        self.d_head = d_model // num_heads
-        
-        w_Q = torch.empty(num_heads * self.d_head, d_model)
-        w_K = torch.empty(num_heads * self.d_head, d_model)
-        w_V = torch.empty(num_heads * self.d_head, d_model)
-        
-        self.w_Q = nn.Parameter(w_Q)
-        self.w_K = nn.Parameter(w_K)
-        self.w_V = nn.Parameter(w_V)
-        
-        self.w_O = nn.Parameter(torch.empty(d_model, d_model))
-    def forward(self,
-                x:Float[Tensor, "batch seq_len d_model"]
-                )-> Float[Tensor, "batch seq_len d_model"]:
-        
+                 num_heads:int,
+                 theta:float,
+                 max_seq_len:int):
+      
+        super().__init__(d_model, num_heads)
+        self.rope = RoPE(theta= theta,
+                         max_seq_len=max_seq_len,
+                         d_k= d_model//num_heads
+                         )
+    def forward(self,x,token_positions):
         B, T, _ = x.shape
         H = self.num_heads
         D = self.d_head
@@ -59,6 +48,8 @@ class Multihead_Self_Attention(nn.Module):
         k_lower = rearrange(k,"b t (h d) -> b h t d ",h= H)
         v_lower = rearrange(v,"b t (h d) -> b h t d ",h= H)
 
+        q_lower_with_r = self.rope.forward(x=q_lower,token_positions=token_positions)
+        k_lower_with_r = self.rope.forward(x=k_lower,token_positions=token_positions)
         '''
         直接实现版本 
         '''
@@ -86,7 +77,7 @@ class Multihead_Self_Attention(nn.Module):
             torch.ones(T, T,device=x.device, dtype=torch.bool)
         )
         
-        out_put = scale_dot_product_attention(Q=q_lower,K=k_lower,V=v_lower,mask=mask)
+        out_put = scale_dot_product_attention(Q=q_lower_with_r,K=k_lower_with_r,V=v_lower,mask=mask)
         
         # d_model = H*D
         # out_put_normal = out_put.transpose(1,2).contiguous().view(B,T,d_model)
