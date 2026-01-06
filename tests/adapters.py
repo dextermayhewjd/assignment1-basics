@@ -28,6 +28,7 @@ from cs336_basics.transformer_modules.multihead_self_attention_with_rope import 
 from cs336_basics.transformer_assembling.transformer_block import Transformer_Block
 from cs336_basics.transformer_assembling.transformer_language_model import Transformer_LM 
 from cs336_basics.training_module.cross_entropy import cross_entropy
+from cs336_basics.training_module.adamw import AdamW
 def run_linear(
     d_in: int,
     d_out: int,
@@ -598,6 +599,7 @@ def get_adamw_cls() -> Any:
     """
     Returns a torch.optim.Optimizer that implements AdamW.
     """
+    return AdamW
     raise NotImplementedError
 
 
