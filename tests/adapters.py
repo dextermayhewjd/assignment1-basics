@@ -30,6 +30,7 @@ from cs336_basics.transformer_assembling.transformer_language_model import Trans
 from cs336_basics.training_module.cross_entropy import cross_entropy
 from cs336_basics.training_module.adamw import AdamW
 from cs336_basics.training_module.learning_rate_scheduling import learning_rate_scheduling
+from cs336_basics.training_module.gradient_clipping import gradient_clipping
 def run_linear(
     d_in: int,
     d_out: int,
@@ -593,6 +594,7 @@ def run_gradient_clipping(parameters: Iterable[torch.nn.Parameter], max_l2_norm:
 
     The gradients of the parameters (parameter.grad) should be modified in-place.
     """
+    return gradient_clipping(params=parameters,max_l2_norm= max_l2_norm)
     raise NotImplementedError
 
 
