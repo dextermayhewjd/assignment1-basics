@@ -89,11 +89,10 @@ class AdamW(torch.optim.Optimizer):
                 
                 
                 # ---------- (4) Adam 更新 ----------
-                # grad_new = grad - alpha_t*(m_new/(math.sqrt(v_new)+eps))
-               
-                # grad_final = grad_new - lr * weight_decay * grad_new
+                # p.data = p.data - alpha_t*(m_new/(math.sqrt(v_new)+eps))
                 denom = v.sqrt().add_(eps)
                 p.data.addcdiv_(m, denom, value=-alpha_t)
                 
+                # p.data = p.data - lr * weight_decay * grad_new
                 if weight_decay != 0.0:
                     p.data.add_(p.data, alpha=-lr * weight_decay)

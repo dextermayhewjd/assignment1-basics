@@ -31,6 +31,7 @@ from cs336_basics.training_module.cross_entropy import cross_entropy
 from cs336_basics.training_module.adamw import AdamW
 from cs336_basics.training_module.learning_rate_scheduling import learning_rate_scheduling
 from cs336_basics.training_module.gradient_clipping import gradient_clipping
+from cs336_basics.training_module.get_batch import get_batch
 def run_linear(
     d_in: int,
     d_out: int,
@@ -546,6 +547,7 @@ def run_get_batch(
         is the sampled input sequences, and the second tuple item is the corresponding
         language modeling labels.
     """
+    return get_batch(dataset=dataset,batch_size=batch_size,context_length=context_length,device=device)
     raise NotImplementedError
 
 
