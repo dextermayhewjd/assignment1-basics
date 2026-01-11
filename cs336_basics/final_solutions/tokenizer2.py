@@ -1,5 +1,6 @@
+import pickle
 from typing import Iterator, Iterable
-import json
+
 import regex as re
 PAT = re.compile(r"""'(?:[sdmt]|ll|ve|re)| ?\p{L}+| ?\p{N}+| ?[^\s\p{L}\p{N}]+|\s+(?!\S)|\s+""")
 
@@ -86,21 +87,28 @@ class Tokenizer:
 
     @classmethod
     def from_files(cls, vocab_filepath, merges_filepath, special_tokens=None):
-        # Load vocab (assumed to be a JSON file: {token_id: byte_string})
-        with open(vocab_filepath, 'r', encoding='utf-8') as vf:
-            vocab_data = json.load(vf)
-            # Optional: convert keys to int if stored as strings
-            vocab = {int(k): bytes(v, 'latin1') if isinstance(v, str) else bytes(v) 
-                     for k, v in vocab_data.items()}
+        # # Load vocab (assumed to be a JSON file: {token_id: byte_string})
+        # with open(vocab_filepath, "rb") as vf:
+        #     vocab_data = pickle.load(vf)
+        #     # Optional: convert keys to int if stored as strings
+        #     vocab = {int(k): bytes(v, 'latin1') if isinstance(v, str) else bytes(v) 
+        #              for k, v in vocab_data.items()}
 
-        # Load merges (assumed to be a list of pairs like: "a b")
-        with open(merges_filepath, 'r', encoding='utf-8') as mf:
-            lines = mf.readlines()
-            # Optional: skip headers like "#version: 0.2"
-            merge_pairs = [tuple(line.strip().split()) for line in lines if not line.startswith('#') and line.strip()]
-            # Convert to byte-pairs
-            merges = [(a.encode('utf-8'), b.encode('utf-8')) for a, b in merge_pairs]
+        # # Load merges (assumed to be a list of pairs like: "a b")
+        # with open(merges_filepath, 'r', encoding='utf-8') as mf:
+        #     lines = mf.readlines()
+        #     # Optional: skip headers like "#version: 0.2"
+        #     merge_pairs = [tuple(line.strip().split()) for line in lines if not line.startswith('#') and line.strip()]
+        #     # Convert to byte-pairs
+        #     merges = [(a.encode('utf-8'), b.encode('utf-8')) for a, b in merge_pairs]
+    # vocab.pkl
+        with open(vocab_filepath, "rb") as vf:
+            vocab = pickle.load(vf)
 
+        # merges.pkl
+        with open(merges_filepath, "rb") as mf:
+            merges = pickle.load(mf)
+            
         return cls(vocab=vocab, merges=merges, special_tokens=special_tokens)
     
     def encode(self, text: str) -> list[int]:
