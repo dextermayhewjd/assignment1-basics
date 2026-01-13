@@ -1,3 +1,12 @@
+'''
+Docstring for cs336_basics.train_llm.token2ids_different_versions.token2ids
+最开始的实验方式
+尝试多worker 多写入 
+但是for loop 调用np.memmap写入时 token级别写入
+
+'''
+
+
 from pathlib import Path
 from multiprocessing import Pool, cpu_count
 from tqdm import tqdm
@@ -197,12 +206,14 @@ def parallel_encode_file_to_token_ids(
        
        
 def main():
-    num_workers = 6      
+    num_workers = 20      
     ASSIGNMENT_REPO = Path("/home/fredkeira/projects/assignment1-basics")
-    NPY_PATH = ASSIGNMENT_REPO / "cs336_basics/train_llm/chunk_token_counts.npy"
+    OWT_TRAIN_NPY_PATH = ASSIGNMENT_REPO / "cs336_basics/train_llm/scripts/owt_train_chunk_token_counts.npy"
+    OWT_VALID_NPY_PATH = ASSIGNMENT_REPO / "cs336_basics/train_llm/scripts/owt_valid_chunk_token_counts.npy"
+    
     OUTPUT_DATA_REPO = ASSIGNMENT_REPO/"token_to_id_outputs"
     
-    train_token_arr_path = OUTPUT_DATA_REPO / "train_ids.bin"
+    # train_token_arr_path = OUTPUT_DATA_REPO / "train_ids.bin"
     valid_token_arr_path = OUTPUT_DATA_REPO / "valid_ids.bin"
     
     ###### 
@@ -210,15 +221,22 @@ def main():
     N_valid_num = 66_401_048
 
     # 初始化内存映射文件
-    train_token_arr = np.memmap(train_token_arr_path,
+    # train_token_arr = np.memmap(train_token_arr_path,
+    #                             dtype=np.uint16,
+    #                             mode='w+',
+    #                             shape=(N_train_num,)
+    #                             )
+    # counts = np.load(OWT_TRAIN_NPY_PATH)
+    
+    # 初始化内存映射文件
+    valid_token_arr = np.memmap(valid_token_arr_path,
                                 dtype=np.uint16,
                                 mode='w+',
-                                shape=(N_train_num,)
+                                shape=(N_valid_num,)
                                 )
-
+    counts = np.load(OWT_VALID_NPY_PATH)
     # 160个chunk中的token数量
-
-    counts = np.load(NPY_PATH)
+    
     offsets = np.zeros(len(counts) + 1, dtype=np.int64)
 
     prefix_sum = 0
@@ -228,19 +246,34 @@ def main():
         offsets[i + 1] = prefix_sum
 
 
-    # 并行编码训练数据
+    # # 并行编码训练数据
+    # parallel_encode_file_to_token_ids(
+    #     file_path=TRAIN_DATA,
+    #     vocab_path=VOCAB_PATH,
+    #     merges_path=MERGES_PATH,
+    #     special_tokens=SPECIAL_TOKENS,
+    #     token_id_arr=train_token_arr,
+    #     num_processes=num_workers,
+    #     offsets=offsets,
+    #     counts=counts,
+    # )
+    
+    # train_token_arr.flush()
+
+    # 并行编码验证数据
     parallel_encode_file_to_token_ids(
-        file_path=TRAIN_DATA,
+        file_path=VALID_DATA,
         vocab_path=VOCAB_PATH,
         merges_path=MERGES_PATH,
         special_tokens=SPECIAL_TOKENS,
-        token_id_arr=train_token_arr,
+        token_id_arr=valid_token_arr,
         num_processes=num_workers,
         offsets=offsets,
         counts=counts,
     )
-    
-    train_token_arr.flush()
+
+    valid_token_arr.flush()
+
 
 if __name__ == "__main__":
     main()

@@ -19,8 +19,14 @@ def scale_dot_product_attention(
         d_k = Q.shape[-1]
         scale_Qtk = QtK/math.sqrt(d_k)
         
-        masked_x = torch.where(mask,scale_Qtk,torch.tensor(float('-inf')))
-        
+        if mask is not None:
+            masked_x = torch.where(
+                mask,
+                scale_Qtk,
+                # torch.tensor(float('-inf'))
+                torch.full_like(scale_Qtk, float("-inf")),
+                )
+        # 这里其实torch where 是三元运算符的同时 还要求三者都是broadcast-compatiablele的
         softmax_x = softmax(in_features=masked_x,dimension=-1)
         
         result = einsum(softmax_x,V, "... queries keys, ... keys d_v -> ... queries d_v")

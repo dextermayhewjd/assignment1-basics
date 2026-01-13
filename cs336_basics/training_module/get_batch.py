@@ -39,4 +39,7 @@ def get_batch(
     x = batch[:, :-1]
     y = batch[:, 1:]
     
+    x.to(device)
+    y.to(device)
+    
     return x,y

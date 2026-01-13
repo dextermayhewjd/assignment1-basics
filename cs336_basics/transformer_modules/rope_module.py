@@ -42,6 +42,8 @@ class RoPE(nn.Module):
                 x:torch.Tensor,
                 token_positions:torch.Tensor)-> torch.Tensor:
         # batch , seq_len
+        # 防御性编程 
+        token_positions = token_positions.to(x.device)
         
         '''
         (..., seq_len, 1)

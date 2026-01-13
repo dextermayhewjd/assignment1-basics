@@ -27,7 +27,8 @@ class SwiGLU_feed_forward(nn.Module):
         # 逐元素相乘 SiLU(W1​x)⊙(W3​x)
         glu_part = einsum(silu_part1,part3,
                   "batch sequence out_f ,batch sequence out_f -> batch sequence out_f")
-        
+        # glu_part = silu_part1 * part3
+        # 上面的工程更直观 是逐元素相乘
         # SwiGLU
         final_part = self.linear_2(glu_part)
         

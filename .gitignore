@@ -3,6 +3,10 @@ __pycache__/
 *.py[cod]
 *$py.class
 
+# tokenized data / artifacts
+token_to_id_outputs/
+*.bin
+
 # C extensions
 *.so
 

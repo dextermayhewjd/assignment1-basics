@@ -33,7 +33,7 @@ def load_checkpoint(
     optimizer: torch.optim.Optimizer,
 ) -> int:
 
-    checkpoint = torch.load(src, weights_only=True) # 建议开启 weights_only 提高安全性
+    checkpoint = torch.load(src, map_location="cpu")
         
     model.load_state_dict(checkpoint["model"])
     optimizer.load_state_dict(checkpoint["optimizer"])

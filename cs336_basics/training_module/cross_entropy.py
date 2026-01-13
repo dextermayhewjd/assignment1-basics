@@ -8,7 +8,10 @@ def cross_entropy(
     targets: Int[Tensor,"batch"]
     ) -> Float[Tensor, ""]:
         
-    '''    # 找到max的logits 用来避免上溢风险 
+    # 这个不是 doc string 只是注释
+    # 这里是原来的理解 但是可以向量化加速
+    '''    
+    # 找到max的logits 用来避免上溢风险 
         # logits_max = rearrange(logits,"... vocab_size -> ... 1 ","max")
         logits_max = reduce(logits,"... vocab_size -> ... 1 ","max")
         logits_max = torch.max(input=logits,dim=-1,keepdim=True).values

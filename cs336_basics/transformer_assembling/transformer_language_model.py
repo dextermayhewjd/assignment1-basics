@@ -8,7 +8,6 @@ from cs336_basics.transformer_assembling.transformer_block import Transformer_Bl
 from cs336_basics.transformer_modules.linear_module import Linear
 from cs336_basics.transformer_modules.rmsnorm_module import RMSNorm
 from cs336_basics.transformer_modules.softmax_module import softmax
- 
 
 class Transformer_LM(nn.Module):
     def __init__(self,

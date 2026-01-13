@@ -7,7 +7,7 @@ def learning_rate_scheduling(t,
                              T_c):
 
     #  Ift<Tw,thenαt= t/Tw * αmax
-    if t<T_w:
+    if T_w > 0 and t < T_w:
         a_t = t/T_w * a_max
         return a_t 
       
