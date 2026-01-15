@@ -57,7 +57,7 @@ def top_p_sample_next_token(
         
         # 找到截断位置 然后创建mask 但是要包含阶段的位置
         keep_mask = cumulative_probs < p
-        # 包含第一个大于p的位置 通过逻辑或操作实现
+        # 包含第一个大于p的位置 通过逻辑或操作实现 正好其他地方都是0
         keep_mask = keep_mask |torch.roll(
                 input= keep_mask,
                 shifts=1,
@@ -107,9 +107,9 @@ def top_p_sample_next_token(
                 src=normalized_probs
         )
         
-        # 根据新的概率分布采样
-        next_token = torch.multinomial(
+        # 根据新的概率分布采样 返回这个token的index 也就是第几个
+        next_token_id = torch.multinomial(
                 input=res_probs,
                 num_samples=1
         )
-        return next_token
+        return next_token_id

@@ -29,14 +29,58 @@ checkpoint save / load
 
 
 def parse_args():
-    paser = argparse.ArgumentParser(
+    parser = argparse.ArgumentParser(
       description="训练llm",
       formatter_class= argparse.ArgumentDefaultsHelpFormatter
     )
+    # 读取data的path
+    parser.add_argument("--data-dir",type=Path,required=True)
+    
+    '''
+    需要二次确认一下
+    '''
+    
+    # 模型的基本参数
+    parser.add_argument("--vocab-size",type=int,default=10_000,
+                       help="词汇量 即tokenizer训练出来的 此处默认10_000")
+    parser.add_argument("--context_length",type=int,default=256,
+                       help="tiny story并不需要long context")
+    parser.add_argument("--d-model",type=int,default=512,
+                       help="d_model模型的维度 tinysory 是512")
+    parser.add_argument("--num-layers",type=int,default=4,
+                       help="transformer 的层数")
+    parser.add_argument("--num-heads",type=int,default=16,
+                       help="mha中 的head数量")
+    parser.add_argument("--d_ff",type=int,default=1344,
+                       help="在ff 层的 要求是 8/3的d_model 但是要兼顾64的倍数来加速gpu")
+    parser.add_argument("--rope-theta",type = int,default=10_000,
+                       help="rope的参数")
+    
+    
+    # 优化器的参数 AdamW
+    parser.add_argument("--lr-max", type=float, default=1e-4)
+    parser.add_argument("--lr-min", type=float, default=1e-5)
 
-    paser.add_argument("--batch-size",type=int,default=32,help="每个批次的样本数")
+    parser.add_argument("--beta1", type=float, default=0.9)
+    parser.add_argument("--beta2", type=float, default=0.95)
 
-    return paser.parse_args()
+    parser.add_argument("--eps", type=float, default=1e-8)
+    parser.add_argument("--weight-decay", type=float, default=0.1)
+    
+    # training
+    parser.add_argument("--batch-size", type=int, default=32)
+    parser.add_argument("--max-steps", type=int, default=100_000)
+    parser.add_argument("--lr-max", type=float, default=1e-4)
+    parser.add_argument("--lr-min", type=float, default=1e-5)
+    parser.add_argument("--warmup-steps", type=int, default=1000)
+    parser.add_argument("--grad-clip", type=float, default=1.0)
+
+    # checkpoint
+    
+    parser.add_argument("--ckpt-dir", type=Path, default=Path("checkpoints"))
+    parser.add_argument("--save-every", type=int, default=1000)
+    return parser.parse_args()
+
 
 # 传递一个dir path 读取 folder中的两个数据集，返回train_data, val_data
 def load_datasets(path):
@@ -58,98 +102,85 @@ def load_datasets(path):
     return train_data, val_data
 
 
-def train_loop(
-                model,
-                optimizer,
-                train_data,
-                batch_size: int,
-                context_length: int,
-                device: str,
-                max_steps,
-                lr_max,
-                lr_min,
-                T_w,
-                T_c,
-                max_l2_norm,
-                ckpt_path,
-                save_every
-              ):
+# def train_loop(
+#                 model,
+#                 optimizer,
+#                 train_data,
+#                 batch_size: int,
+#                 context_length: int,
+#                 device: str,
+#                 max_steps,
+#                 lr_max,
+#                 lr_min,
+#                 T_w,
+#                 T_c,
+#                 max_l2_norm,
+#                 ckpt_path,
+#                 save_every
+#               ):
 
-    model.to(device)
-    model.train()
+#     model.to(device)
+#     model.train()
 
     
     
-    step = 0
+#     step = 0
     
-    for t in range(step, max_steps):
-        # ---------- 1. sample batch ----------
-        x ,y = get_batch(
-                          dataset=train_data,
-                          batch_size= batch_size,
-                          context_length=context_length,
-                          device= device  
-                        )
-        # ---------- 2. forward----------
-        logits = model(x)
-        loss = cross_entropy(logits=logits,
-                             targets=y
-                             )
-        # ---------- 3. backward ----------
-        optimizer.zero_grad()
-        loss.backward()
+#     for t in range(step, max_steps):
+#         # ---------- 1. sample batch ----------
+#         x ,y = get_batch(
+#                           dataset=train_data,
+#                           batch_size= batch_size,
+#                           context_length=context_length,
+#                           device= device  
+#                         )
+#         # ---------- 2. forward----------
+#         logits = model(x)
+#         loss = cross_entropy(logits=logits,
+#                              targets=y
+#                              )
+#         # ---------- 3. backward ----------
+#         optimizer.zero_grad()
+#         loss.backward()
         
     
 
-        # ---------- 4. gradient clipping ----------
-        gradient_clipping(
-                          params=model.parameters(),
-                          max_l2_norm= max_l2_norm
-                          )
-        # ---------- 5. learning rate scheduling ----------
-        lr = learning_rate_scheduling(
-            t=t,
-            a_max=lr_max,
-            a_min=lr_min,
-            T_w=T_w,
-            T_c=T_c,
-        )
-        for group in optimizer.param_groups:
-            group['lr'] = lr
-# ---------- 6. optimizer step ----------
-        optimizer.step()
+#         # ---------- 4. gradient clipping ----------
+#         gradient_clipping(
+#                           params=model.parameters(),
+#                           max_l2_norm= max_l2_norm
+#                           )
+#         # ---------- 5. learning rate scheduling ----------
+#         lr = learning_rate_scheduling(
+#             t=t,
+#             a_max=lr_max,
+#             a_min=lr_min,
+#             T_w=T_w,
+#             T_c=T_c,
+#         )
+#         for group in optimizer.param_groups:
+#             group['lr'] = lr
+# # ---------- 6. optimizer step ----------
+#         optimizer.step()
 
-        # ---------- 7. logging ----------
-        if t % 100 == 0:
-            print(f"step {t} | loss {loss.item():.4f} | lr {lr:.2e}")
+#         # ---------- 7. logging ----------
+#         if t % 100 == 0:
+#             print(f"step {t} | loss {loss.item():.4f} | lr {lr:.2e}")
 
-        # ---------- 8. checkpoint ----------
-        if t % save_every == 0:
-            save_checkpoint(
-                model,
-                optimizer,
-                iteration=t,
-                out=ckpt_path
-            )
+#         # ---------- 8. checkpoint ----------
+#         if t % save_every == 0:
+#             save_checkpoint(
+#                 model,
+#                 optimizer,
+#                 iteration=t,
+#                 out=ckpt_path
+#             )
         
 def main():
   
     ASSIGNMENT_REPO = Path("/home/fredkeira/projects/assignment1-basics")
     OWT_DATA_REPO = ASSIGNMENT_REPO /"token_to_id_outputs" 
-    # 这个vocab size是基于owt数据集训练的 BPE tokenizer 得到的
-    VOCAB_SIZE = 50257
-    # 模型超参数 上下文长度
-    CONTEXT_LENGTH = 2048
-    # 模型的dimension
-    D_MODEL = 768
-    # 多少层 transformer
-    NUM_LAYERS = 12
-    NUM_HEADS = 12
-    # feedford 层
-    D_FF = 3072
-    # 旋转位置编码的 theta 参数
-    ROPE_THETA = 1000000.0
-    
+
     device = "cuda" if torch.cuda.is_available() else "cpu"
     
     train_data,val_data = load_datasets(path=OWT_DATA_REPO)
@@ -170,23 +201,7 @@ def main():
                         weight_decay=1e-2,
                       )
     
-    train_loop(        
-              model=model,
-              optimizer=optimizer,
-              train_data=train_data,
-              val_data=val_data
-              batch_size=32,
-              context_length=CONTEXT_LENGTH,
-              device="cuda",
-              max_steps=100000,
-              lr_max=1e-4,
-              lr_min=1e-5,
-              T_w=1000,
-              T_c=100000,
-              max_l2_norm=1.0,
-              ckpt_path= ASSIGNMENT_REPO,
-              save_every=1000
-              )
+
     
 
 

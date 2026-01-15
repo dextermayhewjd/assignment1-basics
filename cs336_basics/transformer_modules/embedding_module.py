@@ -11,7 +11,7 @@ class Embedding(nn.Module):
                  ):
         super().__init__()
         '''
-        um_embeddings: int 
+        num_embeddings: int 
                       Size of the vocabulary
         embedding_dim: int 
                       Dimension of the embedding vectors, 
