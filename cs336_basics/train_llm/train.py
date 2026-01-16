@@ -56,29 +56,53 @@ def parse_args():
     parser.add_argument("--rope-theta",type = int,default=10_000,
                        help="rope的参数")
     
+    # learning rate parser
+    parser.add_argument("--lr-max", type=float, default=1e-4,
+                        help="在learning rate scheduler中是 amax a是学习率")
+    parser.add_argument("--lr-min", type=float, default=1e-5,
+                        help="learning rate scheduler 中是 amin")    
+    parser.add_argument("--warmup-steps",type=int,default=30_000,
+                        help="T_c: step at which warm up ends")
+    parser.add_argument("--cosine-steps",type=int,default=100_000,
+        help="T_c: step at which cosine decay ends 可以设计为这里结束 也可以做最后收敛")
+    
     
     # 优化器的参数 AdamW
-    parser.add_argument("--lr-max", type=float, default=1e-4)
-    parser.add_argument("--lr-min", type=float, default=1e-5)
-
-    parser.add_argument("--beta1", type=float, default=0.9)
-    parser.add_argument("--beta2", type=float, default=0.95)
-
-    parser.add_argument("--eps", type=float, default=1e-8)
-    parser.add_argument("--weight-decay", type=float, default=0.1)
+    parser.add_argument("--beta1", type=float, default=0.9,
+                        help="这里控制m的平均步数 0.9 代表记住10步")
+    parser.add_argument("--beta2", type=float, default=0.95,
+                        help="代表v是平均20步的平均振动")
+    parser.add_argument("--eps", type=float, default=1e-8,
+                        help= "防止出现m/根号v平方 除0的情况")
+    parser.add_argument("--weight-decay", type=float, default=0.1,
+                        help="一般是0.1到0.01之间")
     
     # training
     parser.add_argument("--batch-size", type=int, default=32)
     parser.add_argument("--max-steps", type=int, default=100_000)
-    parser.add_argument("--lr-max", type=float, default=1e-4)
-    parser.add_argument("--lr-min", type=float, default=1e-5)
-    parser.add_argument("--warmup-steps", type=int, default=1000)
-    parser.add_argument("--grad-clip", type=float, default=1.0)
 
     # checkpoint
+    parser.add_argument("--ckpt-dir", type=Path,
+                        default=Path("/home/fredkeira/data/cs336_training_result",
+                        help="checkpoint 存的folder在哪"))
+    parser.add_argument("--save-every", type=int, default=500,
+                        help="多久存一次")
     
-    parser.add_argument("--ckpt-dir", type=Path, default=Path("checkpoints"))
-    parser.add_argument("--save-every", type=int, default=1000)
+    
+    
+    parser.add_argument("--seed",type=int,default=1337,
+                        help="随机种子，保证实验可复现")
+    
+    # 下面有些还没有实现但是长期一定有意义的参数
+    parser.add_argument("--device",type=str,default="cuda:1",
+                        choices=["cuda:0", "cuda:1"],
+                        help="训练设备两张卡选哪张")
+    parser.add_argument("--dtype",
+                          type=str,
+                          default="float32",
+                          choices=["float32", "float16", "bfloat16"],
+                          help="模型与计算精度")
+    
     return parser.parse_args()
 
 
