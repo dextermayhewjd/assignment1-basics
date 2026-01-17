@@ -4,6 +4,8 @@ import torch
 import argparse
 from pathlib import Path
 import numpy as np
+import time
+
 from cs336_basics.transformer_assembling.transformer_language_model import Transformer_LM
 from cs336_basics.training_module.adamw import AdamW
 from cs336_basics.training_module.get_batch import get_batch
@@ -43,7 +45,7 @@ def parse_args():
     # 模型的基本参数
     parser.add_argument("--vocab-size",type=int,default=10_000,
                        help="词汇量 即tokenizer训练出来的 此处默认10_000")
-    parser.add_argument("--context_length",type=int,default=256,
+    parser.add_argument("--context-length",type=int,default=256,
                        help="tiny story并不需要long context")
     parser.add_argument("--d-model",type=int,default=512,
                        help="d_model模型的维度 tinysory 是512")
@@ -80,19 +82,19 @@ def parse_args():
     # training
     parser.add_argument("--batch-size", type=int, default=32)
     parser.add_argument("--max-steps", type=int, default=100_000)
-
-    # checkpoint
-    parser.add_argument("--ckpt-dir", type=Path,
-                        default=Path("/home/fredkeira/data/cs336_training_result",
-                        help="checkpoint 存的folder在哪"))
-    parser.add_argument("--save-every", type=int, default=500,
-                        help="多久存一次")
-    
-    
-    
     parser.add_argument("--seed",type=int,default=1337,
                         help="随机种子，保证实验可复现")
+    # checkpoint
+    parser.add_argument("--ckpt-dir", type=Path,
+                        default=Path("/home/fredkeira/data/cs336_training_result"),
+                        help="checkpoint 存的folder在哪")
+    parser.add_argument("--save-every", type=int, default=500,
+                        help="多久存一次")    
+
     
+    
+    
+
     # 下面有些还没有实现但是长期一定有意义的参数
     parser.add_argument("--device",type=str,default="cuda:1",
                         choices=["cuda:0", "cuda:1"],
@@ -126,13 +128,13 @@ def load_datasets(path):
     return train_data, val_data
 
 
-# def train_loop(
-#                 model,
+def train_loop(
+                model,
 #                 optimizer,
 #                 train_data,
 #                 batch_size: int,
 #                 context_length: int,
-#                 device: str,
+                device: str,
 #                 max_steps,
 #                 lr_max,
 #                 lr_min,
@@ -141,10 +143,10 @@ def load_datasets(path):
 #                 max_l2_norm,
 #                 ckpt_path,
 #                 save_every
-#               ):
+              ):
 
-#     model.to(device)
-#     model.train()
+    model.to(device)
+    model.train()
 
     
     
@@ -200,17 +202,19 @@ def load_datasets(path):
 #                 out=ckpt_path
 #             )
         
-def main():
-  
+def main(*args):
+    args = parse_args()
     ASSIGNMENT_REPO = Path("/home/fredkeira/projects/assignment1-basics")
     OWT_DATA_REPO = ASSIGNMENT_REPO /"token_to_id_outputs" 
 
-    device = "cuda" if torch.cuda.is_available() else "cpu"
+
+    
+    device = args
     
     train_data,val_data = load_datasets(path=OWT_DATA_REPO)
     
     model = Transformer_LM(
-                            vocab_size=VOCAB_SIZE,
+                            vocab_size=args.v,
                             context_length=CONTEXT_LENGTH,
                             d_model=D_MODEL,
                             num_layers=NUM_LAYERS,
@@ -225,7 +229,10 @@ def main():
                         weight_decay=1e-2,
                       )
     
-
+    train_loop(model=model,
+               
+               device= device,
+               )
     
 
 
