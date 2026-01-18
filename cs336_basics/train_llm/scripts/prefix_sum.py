@@ -2,7 +2,23 @@ import numpy as np
 from pathlib import Path
 
 ASSIGNMENT_REPO = Path("/home/fredkeira/projects/assignment1-basics")
-NPY_PATH = ASSIGNMENT_REPO / "cs336_basics/train_llm/chunk_token_counts.npy"
+# NPY_PATH = ASSIGNMENT_REPO / "cs336_basics/train_llm/chunk_token_counts.npy"
+
+
+
+# OWT_TRAIN_NPY_PATH 
+# NPY_PATH= ASSIGNMENT_REPO / "cs336_basics/train_llm/scripts/owt_train_chunk_token_counts.npy"
+# '''OWT_VALID_NPY_PATH''' 
+# NPY_PATH= ASSIGNMENT_REPO / "cs336_basics/train_llm/scripts/owt_valid_chunk_token_counts.npy"
+
+# '''TS_TRAIN_NPY_PATH''' 
+# NPY_PATH = ASSIGNMENT_REPO / "cs336_basics/train_llm/scripts/tinystory_train_chunk_token_counts.npy"
+# '''TS_VALID_NPY_PATH''' 
+NPY_PATH = ASSIGNMENT_REPO / "cs336_basics/train_llm/scripts/tinystory_valid_chunk_token_counts.npy"
+
+
+
+
 
 counts = np.load(NPY_PATH)
 
@@ -13,17 +29,17 @@ print(counts.shape)        # 形状
 print(counts.dtype)        # 数据类型
 print(len(counts))          # 元素数量
 
-# offsets = np.zeros(len(counts) + 1, dtype=np.int64)
+offsets = np.zeros(len(counts) + 1, dtype=np.int64)
 
-# prefix_sum = 0
-# offsets[0] = 0
-# for i, count in enumerate(counts):
-#     prefix_sum += count
-#     offsets[i + 1] = prefix_sum
-# # print(offsets)
+prefix_sum = 0
+offsets[0] = 0
+for i, count in enumerate(counts):
+    prefix_sum += count
+    offsets[i + 1] = prefix_sum
+# print(offsets)
 
-# start = offsets[:-1]
-# end = offsets[1:]
+start = offsets[:-1]
+end = offsets[1:]
 
-# for i in range(len(counts)):
-#     print(f"Chunk {i}: start={start[i]}, end={end[i]}, count={counts[i]}")
+for i in range(len(counts)):
+    print(f"Chunk {i}: start={start[i]}, end={end[i]}, count={counts[i]}")

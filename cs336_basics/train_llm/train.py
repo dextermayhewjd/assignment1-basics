@@ -8,13 +8,16 @@ import time
 import numpy as np
 import torch
 import numpy.typing as npt
+import random
+import torch
+import numpy as np
 
 from pathlib import Path
 from datetime import datetime
 from omegaconf import OmegaConf
 from cs336_basics.config.all_in_all_config import Config
 from pathlib import Path
-
+from typing import cast
 
 
 from cs336_basics.transformer_assembling.transformer_language_model import Transformer_LM
@@ -25,8 +28,10 @@ from cs336_basics.training_module.gradient_clipping import gradient_clipping
 from cs336_basics.training_module.check_point import save_checkpoint,load_checkpoint
 from cs336_basics.training_module.learning_rate_scheduling import learning_rate_scheduling
 from cs336_basics.experiment_infra.loss_log import log_loss
-
+from cs336_basics.experiment_infra.load_best_valid_from_log import load_best_valid_from_log
 from cs336_basics.training_module.check_point import save_checkpoint,load_checkpoint
+
+from cs336_basics.config.all_in_all_config import DataConfig,MemmapDType
 '''
 Docstring for cs336_basics.training_module.training_together
 
@@ -41,6 +46,17 @@ gradient clipping
 checkpoint save / load
 
 '''
+
+
+def set_seed(seed: int):
+    random.seed(seed)
+    np.random.seed(seed)
+    torch.manual_seed(seed)
+    torch.cuda.manual_seed_all(seed)
+
+    # # 为了可复现（会稍慢）
+    # torch.backends.cudnn.deterministic = True
+    # torch.backends.cudnn.benchmark = False
 
 
 def parse_args():
@@ -130,45 +146,64 @@ def make_run_dir(root: Path, exp_base_name: str, seed: int) -> Path:
 
 
 # 传递一个dir path 读取 folder中的两个数据集，返回train_data, val_data
-def load_datasets(path):
+# def load_datasets(path):
     
-    train_bin = path / "train_ids.bin"
-    val_bin = path / "valid_ids.bin"
+#     train_bin = path / "train_ids.bin"
+#     val_bin = path / "valid_ids.bin"
     
-    train_data = np.memmap(train_bin, dtype=np.uint16, mode="r")
-    val_data = np.memmap(val_bin, dtype=np.uint16, mode="r")
+#     train_data = np.memmap(train_bin, dtype=np.uint16, mode="r")
+#     val_data = np.memmap(val_bin, dtype=np.uint16, mode="r")
+#     return train_data, val_data
+
+def load_datasets(cfg: DataConfig):
+    data_dir = cfg.data_dir
+    train_bin = data_dir / cfg.train_bin_name
+    val_bin = data_dir / cfg.valid_bin_name
+
+    dtype = np.uint16 if cfg.memmap_dtype == MemmapDType.uint16 else np.uint32
+
+    train_data = np.memmap(train_bin, dtype=dtype, mode="r")
+    val_data = np.memmap(val_bin, dtype=dtype, mode="r")
     return train_data, val_data
 
 
 @torch.no_grad()
-def evaluate(model, 
-             valid_data: npt.NDArray, 
-             cfg, device: str) -> float:
-  
-    model.eval()
-    losses = []
-    eval_steps = int(cfg.train.get("eval_steps", 1))  # 如果你没配 eval_steps，默认 1
-    for _ in range(eval_steps):
-        x, y = get_batch(
-            dataset=valid_data,
-            batch_size=int(cfg.train.batch_size),
-            context_length=int(cfg.model.context_length),
-            device=device,
-        )
-        logits = model(x)
-        loss = cross_entropy(logits=logits, targets=y)
-        losses.append(float(loss.item()))
-    model.train()
-    return float(np.mean(losses))
+def evaluate(
+            model,
+            dataset,
+            batch_size,
+            context_length,
+            device,
+            eval_steps: int,
+    ):
+        assert not torch.is_grad_enabled()
+        model.eval()
+        losses = []
+
+        for _ in range(eval_steps):
+            x, y = get_batch(
+                dataset=dataset,
+                batch_size=batch_size,
+                context_length=context_length,
+                device=device,
+            )
+            logits = model(x)
+            loss = cross_entropy(logits, y)
+            losses.append(loss.item())
+
+        model.train()
+        return sum(losses) / len(losses)
+
 
 
 
 def train_loop(
+                cfg,
                 model,
                 optimizer,
                 train_data: npt.NDArray,
                 valid_data: npt.NDArray,
-                eval_every:int,
+                
                 batch_size: int,
                 context_length: int,
                 device: str,
@@ -182,22 +217,50 @@ def train_loop(
                 exp_base_name:str,
                 seed:int,
                 save_every:int,
+                eval_every:int,
+                eval_step:int,
+                resume:bool,
+                resume_dir:Path|None
               ):
     start_time = time.time()
     model.to(device)
     model.train()
-    step = 0
-    # experiment dir 
-    exp_dir = make_run_dir(
-                root=run_dir,
-                exp_base_name=exp_base_name,
-                seed=seed,
-                )
     
-    ckpt_dir = exp_dir / "ckpt_dir"
-    ckpt_dir.mkdir(parents=True,exist_ok=False)
+    if resume:
+        assert resume_dir is not None, "resume=True but resume_dir is None"
+        exp_dir = resume_dir
+
+        ckpt_dir = exp_dir / "ckpt_dir"
+        # 工程正确 确保就算folder也能继续
+        ckpt_dir.mkdir(parents=True, exist_ok=True)
+        ckpt_path = exp_dir / "ckpt_latest.pt"
+        if not ckpt_path.exists():
+            raise FileNotFoundError(f"Missing ckpt_latest.pt under {exp_dir}")
+
+        start_step = load_checkpoint(
+                        ckpt_path,
+                        model=model,
+                        optimizer=optimizer,
+                    ) + 1
+        best_valid_loss = load_best_valid_from_log(exp_dir) \
+            if (exp_dir / "valid.log").exists() else float("inf")
     
-    for t in range(step, max_steps):
+    else:
+        start_step = 0
+        # experiment dir 
+        exp_dir = make_run_dir(
+                    root=run_dir,
+                    exp_base_name=exp_base_name,
+                    seed=seed,
+                    )
+        OmegaConf.save(cfg, exp_dir/"config.yaml")
+        
+        ckpt_dir = exp_dir / "ckpt_dir"
+        ckpt_dir.mkdir(parents=True,exist_ok=False)
+
+        best_valid_loss = float("inf")
+        
+    for step in range(start_step, max_steps):
         # ---------- 1. sample batch ----------
         x ,y = get_batch(
                           dataset=train_data,
@@ -211,7 +274,7 @@ def train_loop(
                              targets=y
                              )
         # ---------- 3. backward ----------
-        optimizer.zero_grad()
+        optimizer.zero_grad(set_to_none=True)
         loss.backward()
         
         # ---------- 4. gradient clipping ----------
@@ -220,8 +283,9 @@ def train_loop(
                           max_l2_norm= max_l2_norm
                           )
         # ---------- 5. learning rate scheduling ----------
+        # 这个是global lr
         lr = learning_rate_scheduling(
-            t=t,
+            t=step,
             a_max=lr_max,
             a_min=lr_min,
             T_w=T_w,
@@ -237,102 +301,120 @@ def train_loop(
         # ---------- 7. logging ----------
         now = time.time()
         elps_time = now - start_time
+        
         log_loss(
           tag="train",
-          step= t,
+          step= step,
           loss = loss,
           lr= lr,
           wallclock_time= elps_time,
-          path= exp_dir,
+          run_dir= exp_dir,
           to_terminal=True
         )
-        # ---------- 8. checkpoint ----------
-        if t % eval_every ==0: 
-            model.eval()
-            x_valid,y_valid = get_batch(
-                          dataset=valid_data,
-                          batch_size= batch_size,
-                          context_length=context_length,
-                          device= device  
-                        )
-            with torch.no_grad():
-                logits_valid = model(x_valid)
-                
-                valid_loss = cross_entropy(
-                    logits=logits_valid,
-                    targets=y_valid
-                )
-                now = time.time()
-                elps_time = now - start_time
-                
-                log_loss(
-                    tag="valid",
-                    step= t,
-                    loss = valid_loss,
-                    lr= lr,
-                    wallclock_time= elps_time,
-                    path= exp_dir,
-                    to_terminal=True
-                      )
-                model.train()
-#         # ---------- 8. checkpoint ----------
-        if t % save_every == 0:
-            
-            ckpt_dir_file = ckpt_dir/f"step{t}"
-            save_checkpoint(
-                model=model,
-                optimizer=optimizer,
-                iteration=t,
-                out= ckpt_dir_file
-            )
         
-def main(*args):
+        # ---------- 8. checkpoint ----------
+
+            
+        if step % eval_every ==0: 
+            valid_loss = evaluate(
+                model=model,
+                dataset=valid_data,
+                batch_size=batch_size,
+                context_length=context_length,
+                device=device,
+                eval_steps=eval_step
+            )
+            
+            
+            elps_time = now - start_time
+            log_loss(tag="valid",
+                     step=step,
+                     loss=valid_loss,
+                     lr=lr,
+                     wallclock_time=elps_time,
+                     run_dir=exp_dir,
+                     to_terminal=True,
+                     )
+            if valid_loss < best_valid_loss:
+                best_valid_loss = valid_loss
+                ckpt_best_file = exp_dir/f"ckpt_best.pt"
+                save_checkpoint(model=model,optimizer=optimizer,
+                iteration=step,out= ckpt_best_file)
+#         # ---------- 8. checkpoint ----------
+        if step % save_every == 0:
+            
+            ckpt_dir_file = ckpt_dir/f"step{step}.pt"
+            # 存放最新的latest file
+            ckpt_latest_file = exp_dir/f"ckpt_latest.pt"
+            
+            # 存当前的checkpoint
+            save_checkpoint(model=model,optimizer=optimizer,
+                            iteration=step,out= ckpt_dir_file)
+            save_checkpoint(model=model,optimizer=optimizer,
+                iteration=step,out= ckpt_latest_file)
+        
+def main():
     args = parse_args()
     ASSIGNMENT_REPO = Path("/home/fredkeira/projects/assignment1-basics")
     OWT_DATA_REPO = ASSIGNMENT_REPO /"token_to_id_outputs" 
 
-    config_path = Path("/home/fredkeira/projects/assignment1-basics/cs336_basics/config/config.yaml")
+    config_path = Path("/home/fredkeira/projects/assignment1-basics/cs336_basics/config/test1_config.yaml")
 
     base_cfg = OmegaConf.structured(Config)
     file_cfg = OmegaConf.load(config_path)
     cfg = OmegaConf.merge(base_cfg, file_cfg)
+    cfg = cast(Config, cfg)
+    set_seed(cfg.train.seed)
     
-    device = args
-    
-    train_data,val_data = load_datasets(path=OWT_DATA_REPO)
+    # train_data,val_data = load_datasets(path=OWT_DATA_REPO)
+    train_data, val_data = load_datasets(cfg.data)
+
     
     model = Transformer_LM(
-                            vocab_size=args.v,
-                            context_length=CONTEXT_LENGTH,
-                            d_model=D_MODEL,
-                            num_layers=NUM_LAYERS,
-                            num_heads=NUM_HEADS,
-                            d_ff=D_FF,
-                            rope_theta=ROPE_THETA,
+                            vocab_size=cfg.model.vocab_size,
+                            context_length=cfg.model.context_length,
+                            d_model=cfg.model.d_model,
+                            num_layers=cfg.model.num_layers,
+                            num_heads=cfg.model.num_heads,
+                            d_ff=cfg.model.d_ff,
+                            rope_theta=cfg.model.rope_theta,
                           )
-    
+    # 其实这里日后会更具learning rate scheduling 变更
     optimizer = AdamW(
                         params=model.parameters(),
-                        lr=1e-4,
-                        weight_decay=1e-2,
+                        lr=cfg.optim.lr_max,
+                        weight_decay=cfg.optim.weight_decay,
+                        betas=(cfg.optim.beta1,cfg.optim.beta2),
+                        eps=(cfg.optim.eps)
                       )
     
-    train_loop(model=model,
-               device= device,
-               max_steps= args.,
+    
+    train_loop(
+                cfg=cfg,
+               model=model,
+               optimizer= optimizer,
                train_data= train_data,
                valid_data = val_data,
-               context_length=args,
-               optimizer= optimizer,
-               max_l2_norm= args.,
-               lr_max=args,
-               lr_min=args.,
-               T_w=args.,
-               T_c=args.,
+               batch_size= cfg.train.batch_size,
+               context_length=cfg.model.context_length,
+               device= cfg.runtime.device,
+               max_steps= cfg.train.max_steps,
+               lr_max=cfg.optim.lr_max,
+               lr_min=cfg.optim.lr_min,
+               T_w=cfg.optim.warmup_steps,
+               T_c=cfg.optim.cosine_steps,               
+               max_l2_norm= cfg.train.max_l2_norm,
+               run_dir=cfg.experiment.run_dir,
+               exp_base_name= cfg.experiment.exp_name,
+               seed= cfg.train.seed,
+               save_every=cfg.train.save_every,
+               eval_every=cfg.train.eval_every,
+               eval_step=cfg.train.eval_steps,
+               resume=cfg.experiment.resume,
+               resume_dir=cfg.experiment.resume_path         
                )
     
 
 
 if __name__ == "__main__":
-  args = parse_args()
-  main(args)
+  main()

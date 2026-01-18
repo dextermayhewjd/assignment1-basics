@@ -4,6 +4,8 @@ Docstring for cs336_basics.train_llm.token2ids_different_versions.token2ids
 尝试多worker 多写入 
 但是for loop 调用np.memmap写入时 token级别写入
 
+这个版本过于复杂 弃用
+
 '''
 
 

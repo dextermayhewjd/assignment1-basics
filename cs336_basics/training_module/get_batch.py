@@ -34,7 +34,7 @@ def get_batch(
     # 广播机制 一次性生成
     idx = starts[:, None] + offsets[None, :]
     
-    batch = torch.from_numpy(dataset[idx.numpy()]).to(device)
+    batch = torch.from_numpy(dataset[idx.numpy()]).to(device=device, dtype=torch.long)
     
     x = batch[:, :-1]
     y = batch[:, 1:]

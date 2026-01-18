@@ -61,23 +61,27 @@ def log_loss(
     *,
     tag: str,            # "train" / "valid"
     step: int,
-    loss: float,
+    loss,
     lr: float,
     wallclock_time: float,
-    path: Path,
+    run_dir: Path,
     to_terminal: bool = True,
 ):
-    path.parent.mkdir(parents=True, exist_ok=True)
+    # 明确：run_dir 是目录
+    run_dir.mkdir(parents=True, exist_ok=True)
 
+    log_path = run_dir / f"{tag}.log"
+    loss_val = float(loss)
+    
     line = (
         f"[{tag:5}] "
         f"step{step:6d} | "
-        f"loss{loss:10.7f} | "
+        f"loss{loss_val:10.7f} | "
         f"lr{lr:10.2e} | "
         f"t{wallclock_time:10.1f}"
     )
 
-    with open(path, "a", encoding="utf-8") as f:
+    with open(log_path, "a", encoding="utf-8") as f:
         f.write(line + "\n")
 
     if to_terminal:

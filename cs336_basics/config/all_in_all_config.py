@@ -18,10 +18,10 @@ class TorchDType(str, Enum):
 @dataclass
 class DataConfig:
     # 存 train_ids.bin / valid_ids.bin 的目录
-    data_dir: str = "/home/fredkeira/projects/assignment1-basics/token_to_id_outputs"
+    data_dir: Path = "/home/fredkeira/projects/assignment1-basics/token_to_id_outputs"
     train_bin_name: str = "train_ids.bin"
     valid_bin_name: str = "valid_ids.bin"
-    # memmap dtype（你现在用 uint16；如果以后 tokenizer vocab > 65535，就要 uint32）
+    # memmap dtype（现在用 uint16；如果以后 tokenizer vocab > 65535，就要 uint32）
     memmap_dtype: MemmapDType = MemmapDType.uint16
     
     
@@ -65,7 +65,7 @@ class TrainConfig:
 
     save_every: int = 500
     eval_every: int = 100
-    eval_steps: int = 1  # valid 平均多少个 batch（建议 20 或 50）
+    eval_steps: int = 50
 
 
 
@@ -80,11 +80,13 @@ class RuntimeConfig:
 # --- 6) Experiment ---
 @dataclass
 class ExperimentConfig:
-    run_dir: str = "/home/fredkeira/data/cs336_training_result"
+    run_dir: Path = "/home/fredkeira/data/cs336_training_result"
     exp_name: str = "tinystories_base"
 
     resume: bool = False
-    resume_path: Optional[str] = None  # 如果指定，从这个 ckpt 恢复，否则默认用 ckpt_latest.pt
+    resume_path: Optional[Path] = None
+
+    # 如果指定，从这个 ckpt 恢复，否则默认用 ckpt_latest.pt
 
 
 # --- Top-level Config ---

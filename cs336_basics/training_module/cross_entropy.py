@@ -4,9 +4,9 @@ import torch
 from einops import rearrange,reduce
 
 def cross_entropy(
-    logits: Float[Tensor,"batch vocab_size"],
-    targets: Int[Tensor,"batch"]
-    ) -> Float[Tensor, ""]:
+    logits: Float[Tensor, "batch time vocab_size"],
+    targets: Int[Tensor, "batch time"],
+) -> Float[Tensor, ""]:
         
     # 这个不是 doc string 只是注释
     # 这里是原来的理解 但是可以向量化加速
@@ -40,16 +40,21 @@ def cross_entropy(
     这里失效的原因是这个softmax的技巧解决的是上溢风险 
     一旦log 极小值 然后 -log 就变成极大值 就会上溢
     '''  
+    B, T, V = logits.shape
+        # (B*T, V)
+    logits = logits.contiguous().view(B * T, V)
+    targets = targets.contiguous().view(B * T)
+
+    
     logits_max = torch.max(input=logits,dim=-1,keepdim=True).values
     safe_logits = logits-logits_max
     exp_safe_logits = torch.exp(input=safe_logits)
     exp_sum = torch.sum(input=exp_safe_logits,dim=-1,keepdim= True)
     
-    row_idx = torch.arange(logits.shape[0])          # (B,)
-    col_idx = targets                            # (B,)
+    row_idx = torch.arange(B * T, device=logits.device)
+    selected_logit = safe_logits[row_idx, targets]
 
-    selected_logit = safe_logits[row_idx, col_idx]         # (B,)
-    
+
     # -(y-max) + log sum e^k-max
     out = - selected_logit + torch.log(input= exp_sum)
     return torch.mean(out)
