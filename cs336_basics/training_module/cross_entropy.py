@@ -40,21 +40,37 @@ def cross_entropy(
     这里失效的原因是这个softmax的技巧解决的是上溢风险 
     一旦log 极小值 然后 -log 就变成极大值 就会上溢
     '''  
-    B, T, V = logits.shape
-        # (B*T, V)
-    logits = logits.contiguous().view(B * T, V)
-    targets = targets.contiguous().view(B * T)
+from torch import Tensor
+import torch
+from jaxtyping import Float, Int
 
-    
-    logits_max = torch.max(input=logits,dim=-1,keepdim=True).values
-    safe_logits = logits-logits_max
-    exp_safe_logits = torch.exp(input=safe_logits)
-    exp_sum = torch.sum(input=exp_safe_logits,dim=-1,keepdim= True)
-    
-    row_idx = torch.arange(B * T, device=logits.device)
-    selected_logit = safe_logits[row_idx, targets]
+def cross_entropy(
+    logits: Float[Tensor, "... vocab_size"],
+    targets: Int[Tensor, "..."],
+) -> Float[Tensor, ""]:
+    """
+    A numerically stable cross entropy loss.
 
+    Supports:
+      - logits: (N, V), targets: (N,)
+      - logits: (B, T, V), targets: (B, T)
+    """
 
-    # -(y-max) + log sum e^k-max
-    out = - selected_logit + torch.log(input= exp_sum)
-    return torch.mean(out)
+    # -------- 1. reshape to (N, V) --------
+    V = logits.shape[-1]
+    logits = logits.reshape(-1, V)
+    targets = targets.reshape(-1)
+
+    # -------- 2. log-sum-exp (stable) --------
+    logits_max = logits.max(dim=-1, keepdim=True).values
+    logsumexp = torch.log(
+        torch.exp(logits - logits_max).sum(dim=-1)
+    ) + logits_max.squeeze(-1)
+
+    # -------- 3. gather correct class --------
+    row_idx = torch.arange(logits.shape[0], device=logits.device)
+    selected = logits[row_idx, targets]
+
+    # -------- 4. cross entropy --------
+    loss = -selected + logsumexp
+    return loss.mean()

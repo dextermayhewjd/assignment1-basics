@@ -1,7 +1,9 @@
+
+
+
 data:
   data_dir: /home/fredkeira/projects/assignment1-basics/token_to_id_outputs_tinystory 
   eot_id: 256   # 这里填 tokenizer 的 <|endoftext|> id
-
 model:
   vocab_size: 10000
   context_length: 256
@@ -12,22 +14,22 @@ model:
   rope_theta: 10000
 
 optim:
-  lr_max: 1e-2
+  lr_max: 1e-3
   lr_min: 1e-3
-  warmup_steps: 100
-  cosine_steps: 1000
+  warmup_steps: 0
+  cosine_steps: 0
   beta1: 0.9
-  beta2: 0.95
+  beta2: 0.995
   eps: 1e-8
-  weight_decay: 0.0
+  weight_decay: 0
 
 train:
-  batch_size: 32
-  max_steps: 100000
+  batch_size: 1
+  max_steps: 300
   seed: 1337
   max_l2_norm: 1.0
   save_every: 500
-  eval_every: 100
+  eval_every: 200
   eval_steps: 20
 
 runtime:
@@ -39,3 +41,8 @@ experiment:
   exp_name: tinystories_base
   resume: false
   resume_path: null
+
+  debug_overfit: true
+  one_step: false
+  debug_shapes: false
+  debug_norms: true

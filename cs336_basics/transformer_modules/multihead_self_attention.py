@@ -7,6 +7,9 @@ import math
 from einops import einsum,rearrange
 
 from cs336_basics.transformer_modules.scaled_dot_product_attention import scale_dot_product_attention
+def trunc_normal_init_(w: torch.Tensor, std: float):
+    nn.init.trunc_normal_(w, mean=0.0, std=std, a=-3*std, b=3*std)
+
 class Multihead_Self_Attention(nn.Module):
     def __init__(self,
                  d_model:int,
@@ -23,8 +26,14 @@ class Multihead_Self_Attention(nn.Module):
         self.w_Q = nn.Parameter(w_Q)
         self.w_K = nn.Parameter(w_K)
         self.w_V = nn.Parameter(w_V)
-        
         self.w_O = nn.Parameter(torch.empty(d_model, d_model))
+        
+                # ✅ 推荐：LLM 常用尺度
+        std = 0.02
+        trunc_normal_init_(self.w_Q, std)
+        trunc_normal_init_(self.w_K, std)
+        trunc_normal_init_(self.w_V, std)
+        trunc_normal_init_(self.w_O, std)
     def forward(self,
                 x:Float[Tensor, "batch seq_len d_model"]
                 )-> Float[Tensor, "batch seq_len d_model"]:

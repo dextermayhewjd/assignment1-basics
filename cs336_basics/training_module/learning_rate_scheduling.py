@@ -5,7 +5,9 @@ def learning_rate_scheduling(t,
                              a_min,
                              T_w,
                              T_c):
-
+    # 用于debug 
+    if T_c ==0 and T_w ==0 and a_max == a_min:
+        return a_max
     #  Ift<Tw,thenαt= t/Tw * αmax
     if T_w > 0 and t < T_w:
         a_t = t/T_w * a_max

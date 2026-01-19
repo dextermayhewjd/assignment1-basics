@@ -21,6 +21,7 @@ class DataConfig:
     data_dir: Path = "/home/fredkeira/projects/assignment1-basics/token_to_id_outputs"
     train_bin_name: str = "train_ids.bin"
     valid_bin_name: str = "valid_ids.bin"
+    eot_id: int = 256
     # memmap dtype（现在用 uint16；如果以后 tokenizer vocab > 65535，就要 uint32）
     memmap_dtype: MemmapDType = MemmapDType.uint16
     
@@ -85,7 +86,11 @@ class ExperimentConfig:
 
     resume: bool = False
     resume_path: Optional[Path] = None
-
+    
+    debug_overfit: bool = False
+    one_step: bool = False
+    debug_shapes: bool = False
+    debug_norms: bool = False
     # 如果指定，从这个 ckpt 恢复，否则默认用 ckpt_latest.pt
 
 

@@ -19,6 +19,8 @@ from cs336_basics.config.all_in_all_config import Config
 from pathlib import Path
 from typing import cast
 
+# 临时替换以排除自定义函数 bug
+import torch.nn.functional as F
 
 from cs336_basics.transformer_assembling.transformer_language_model import Transformer_LM
 from cs336_basics.training_module.adamw import AdamW
@@ -46,6 +48,12 @@ gradient clipping
 checkpoint save / load
 
 '''
+def single_step_loss(logits, y):
+    # logits: (1, T, V)
+    # y:      (1, T)
+    logits_last = logits[:, -1, :]   # (1, V)
+    y_last = y[:, -1]                # (1,)
+    return cross_entropy(logits_last, y_last)
 
 
 def set_seed(seed: int):
@@ -220,11 +228,28 @@ def train_loop(
                 eval_every:int,
                 eval_step:int,
                 resume:bool,
-                resume_dir:Path|None
+                resume_dir:Path|None,
+                debug_overfit:bool = False,
+                one_step:bool = False,
+                debug_shapes:bool = False,
+                debug_norms:bool = False
               ):
     start_time = time.time()
     model.to(device)
     model.train()
+    
+    # ===== debug: 固定一个 batch =====
+
+    if debug_overfit:
+        # 这里 get_batch 已经返回了 x: batch[:, :-1] 和 y: batch[:, 1:]
+        x_fixed, y_fixed = get_batch(
+            train_data,
+            batch_size=batch_size,
+            context_length=context_length,
+            device=device,
+        )
+        # 调试打印：确认 x 的最后一个 token 确实是 y 倒数第二个 token
+        print(f"DEBUG: x_fixed shape {x_fixed.shape}, y_fixed shape {y_fixed.shape}")
     
     if resume:
         assert resume_dir is not None, "resume=True but resume_dir is None"
@@ -262,20 +287,45 @@ def train_loop(
         
     for step in range(start_step, max_steps):
         # ---------- 1. sample batch ----------
-        x ,y = get_batch(
-                          dataset=train_data,
-                          batch_size= batch_size,
-                          context_length=context_length,
-                          device= device  
-                        )
-        # ---------- 2. forward----------
-        logits = model(x)
-        loss = cross_entropy(logits=logits,
-                             targets=y
-                             )
+        if debug_overfit:
+            x, y = x_fixed, y_fixed
+        else:
+            x ,y = get_batch(
+                            dataset=train_data,
+                            batch_size= batch_size,
+                            context_length=context_length,
+                            device= device  
+                            )
+        # ---------- 2. forward ----------
+        logits = model(x)  # logits shape: (B, T, V)
+        
+        if one_step:
+            # 单步模式只算最后一个 token 的 loss
+            loss = single_step_loss(logits, y)
+            
+        else:
+            # 正常模式算全序列 loss
+            # ！！！注意：因为 get_batch 已经把 y 偏移好了，
+            # 这里的 logits[:, t] 对应的就是 y[:, t] (即下一个词)
+            # 所以直接传入即可，不需要在 cross_entropy 内部再 shift
+            loss = cross_entropy(logits=logits, targets=y)
+            # 官方用于测试loss function 有没有写对 写对了 
+            # loss = F.cross_entropy(logits.view(-1, logits.size(-1)), y.view(-1))
+            
         # ---------- 3. backward ----------
         optimizer.zero_grad(set_to_none=True)
         loss.backward()
+        
+        # ---------- 调试：监控梯度范数 (重要！) ----------
+        if debug_norms and step % 10 == 0:
+            total_grad_norm = 0.0
+            for name, p in model.named_parameters():
+                if p.grad is not None:
+                    param_norm = p.grad.data.norm(2)
+                    total_grad_norm += param_norm.item() ** 2
+            total_grad_norm = total_grad_norm ** 0.5
+            print(f"Step {step} | Loss: {loss.item():.4f} | Total Grad Norm: {total_grad_norm:.4f}")
+        
         
         # ---------- 4. gradient clipping ----------
         gradient_clipping(
@@ -358,13 +408,13 @@ def main():
     ASSIGNMENT_REPO = Path("/home/fredkeira/projects/assignment1-basics")
     OWT_DATA_REPO = ASSIGNMENT_REPO /"token_to_id_outputs" 
 
-    config_path = Path("/home/fredkeira/projects/assignment1-basics/cs336_basics/config/test1_config.yaml")
+    config_path = Path("/home/fredkeira/projects/assignment1-basics/cs336_basics/config/debug_config.yaml")
 
     base_cfg = OmegaConf.structured(Config)
     file_cfg = OmegaConf.load(config_path)
     cfg = OmegaConf.merge(base_cfg, file_cfg)
     cfg = cast(Config, cfg)
-    set_seed(cfg.train.seed)
+    # set_seed(cfg.train.seed)
     
     # train_data,val_data = load_datasets(path=OWT_DATA_REPO)
     train_data, val_data = load_datasets(cfg.data)
@@ -412,10 +462,10 @@ def main():
                eval_step=cfg.train.eval_steps,
                resume=cfg.experiment.resume,
                resume_dir=cfg.experiment.resume_path,
-                debug_overfit= cfg.experiment.debug_overfit,
-                one_step = cfg.experiment.one_step,
-                debug_shapes= cfg.experiment.debug_shapes,
-                debug_norms= cfg.experiment.debug_norms,
+                debug_overfit =cfg.experiment.debug_overfit ,
+                one_step=cfg.experiment.one_step,
+                debug_shapes=cfg.experiment.debug_shapes,
+                debug_norms=cfg.experiment.debug_norms,
                )
     
 

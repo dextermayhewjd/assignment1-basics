@@ -41,36 +41,53 @@ class Transformer_Block(nn.Module):
         self.rmsnorm_2 = RMSNorm(d_model=d_model)
 
         
-    def forward(self,
-                x: Float[Tensor, "batch sequence_length d_model"]):
+    # def forward(self,
+    #             x: Float[Tensor, "batch sequence_length d_model"]):
+    #     device = x.device
         
-        B,T,D = x.shape
-        token_positions = torch.arange(T).unsqueeze(0)# [0,1,2,3...T-1] 后变成[[1,2,3,4,...T-1]]
-        x_norm = self.rmsnorm_1(x)
-        x_cmha_r = self.mha_r(x_norm,token_positions)
+    #     B,T,D = x.shape
+    #     token_positions = torch.arange(T, device=x.device)[None, :]# [0,1,2,3...T-1] 后变成[[1,2,3,4,...T-1]]
+    #     x_norm = self.rmsnorm_1(x)
+    #     x_cmha_r = self.mha_r(x_norm,token_positions)
         
-        x_add = x + x_cmha_r
+    #     x_add = x + x_cmha_r
         
-        x_add_norm = self.rmsnorm_2(x_add)
-        x_add_norm_ff = self.swiglu_ff(x_add_norm)
+    #     x_add_norm = self.rmsnorm_2(x_add)
+    #     x_add_norm_ff = self.swiglu_ff(x_add_norm)
         
-        x_out = x_add_norm_ff + x_add
+    #     x_out = x_add_norm_ff + x_add
         
-        return x_out
+    #     return x_out
       
-        '''
-        工程问题是 记得 两个模块的参数不共享 所以得有两个rmsnorm
-        torch.arrange(T)不是很会用
+    #     '''
+    #     工程问题是 记得 两个模块的参数不共享 所以得有两个rmsnorm
+    #     torch.arrange(T)不是很会用
         
-        torch.arange(T)[None, :]
-        [None,:] 是会创造处一个新的维度
-        等价于
-        torch.arange(T).unsqueeze(0)
-        整理
+    #     torch.arange(T)[None, :]
+    #     [None,:] 是会创造处一个新的维度
+    #     等价于
+    #     torch.arange(T).unsqueeze(0)
+    #     整理
         
-        https://chatgpt.com/g/g-p-693f75d2365c8191baf9aaa7038e3595-cs336xiao-xi-jie/c/6958afa5-4ff0-832e-9ab1-def8fdf6c9c7
+    #     https://chatgpt.com/g/g-p-693f75d2365c8191baf9aaa7038e3595-cs336xiao-xi-jie/c/6958afa5-4ff0-832e-9ab1-def8fdf6c9c7
         
-        世界是为什么 cos_cache 里可以使用tensor 以及只是最后一个维度
-        '''
+    #     世界是为什么 cos_cache 里可以使用tensor 以及只是最后一个维度
+    #     '''
         
+    def forward(self, x: Tensor) -> Tensor:
+        B, T, D = x.shape
+        # 生成 [1, T] 的位置张量
+        token_positions = torch.arange(T, device=x.device).unsqueeze(0)
         
+        # 1. Attention 子层 (Pre-LN)
+        # 注意：这里把 x 传给 rmsnorm_1 后的结果给 MHA
+        x_norm = self.rmsnorm_1(x)
+        # 残差连接：原输入 x + 处理后的结果
+        x = x + self.mha_r(x_norm, token_positions)
+        
+        # 2. FeedForward 子层 (Pre-LN)
+        x_norm = self.rmsnorm_2(x)
+        # 残差连接
+        x = x + self.swiglu_ff(x_norm)
+        
+        return x
