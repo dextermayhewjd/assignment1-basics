@@ -56,6 +56,7 @@
 #             )
 
 from pathlib import Path
+import wandb
 
 def log_loss(
     *,
@@ -80,7 +81,16 @@ def log_loss(
         f"lr{lr:10.2e} | "
         f"t{wallclock_time:10.1f}"
     )
-
+    # 2. wandb logging（新增）
+    if wandb.run is not None:
+        wandb.log(
+            {
+                f"{tag}/loss": float(loss),
+                f"{tag}/lr": lr,
+                f"{tag}/wallclock_time": wallclock_time,
+            },
+            step=step,
+        )
     with open(log_path, "a", encoding="utf-8") as f:
         f.write(line + "\n")
 

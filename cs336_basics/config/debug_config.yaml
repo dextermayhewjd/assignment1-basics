@@ -14,27 +14,27 @@ model:
   rope_theta: 10000
 
 optim:
-  lr_max: 1e-3
-  lr_min: 1e-3
-  warmup_steps: 0
-  cosine_steps: 0
+  lr_max: 3e-3
+  lr_min: 4e-5
+  warmup_steps: 1000
+  cosine_steps: 10000
   beta1: 0.9
   beta2: 0.995
   eps: 1e-8
-  weight_decay: 0
+  weight_decay: 0.1
 
 train:
-  batch_size: 1
-  max_steps: 300
-  seed: 1337
+  batch_size: 128
+  max_steps: 2200
+  seed: 20200825
   max_l2_norm: 1.0
   save_every: 500
-  eval_every: 200
+  eval_every: 100
   eval_steps: 20
 
 runtime:
   device: cuda:1
-  dtype: float32
+  dtype: bfloat16
 
 experiment:
   run_dir: /home/fredkeira/data/cs336_training_result
@@ -42,7 +42,8 @@ experiment:
   resume: false
   resume_path: null
 
-  debug_overfit: true
+  debug_mode: false
+  debug_overfit: false
   one_step: false
   debug_shapes: false
   debug_norms: true

@@ -18,6 +18,7 @@ from omegaconf import OmegaConf
 from cs336_basics.config.all_in_all_config import Config
 from pathlib import Path
 from typing import cast
+import wandb
 
 # 临时替换以排除自定义函数 bug
 import torch.nn.functional as F
@@ -419,6 +420,16 @@ def main():
     # train_data,val_data = load_datasets(path=OWT_DATA_REPO)
     train_data, val_data = load_datasets(cfg.data)
 
+    run = wandb.init(
+    # Set the wandb entity where your project will be logged (generally your team name).
+    entity="dexterding99-uob",
+    # Set the wandb project where this run will be logged.
+    project="cs336-a1-ts",
+    name= f"ts-{cfg.train.batch_size}-{cfg.optim.lr_max}/{cfg.optim.warmup_steps}-{cfg.optim.lr_min}/{cfg.optim.cosine_steps}-{cfg.train.max_steps}-{cfg.runtime.dtype}",
+    mode="offline" if cfg.experiment.debug_mode else "online",
+    # Track hyperparameters and run metadata.
+    config=OmegaConf.to_container(cfg=cfg,resolve=True)
+    )
     
     model = Transformer_LM(
                             vocab_size=cfg.model.vocab_size,

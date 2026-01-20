@@ -87,6 +87,7 @@ class ExperimentConfig:
     resume: bool = False
     resume_path: Optional[Path] = None
     
+    debug_mode:bool = False
     debug_overfit: bool = False
     one_step: bool = False
     debug_shapes: bool = False

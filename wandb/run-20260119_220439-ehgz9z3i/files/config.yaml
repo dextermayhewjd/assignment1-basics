@@ -1,0 +1,106 @@
+_wandb:
+    value:
+        cli_version: 0.24.0
+        e:
+            vq96bd8cysfma9gzauc04ezv5ds2l2xy:
+                codePath: cs336_basics/train_llm/debug_train.py
+                codePathLocal: cs336_basics/train_llm/debug_train.py
+                cpu_count: 10
+                cpu_count_logical: 20
+                cudaVersion: "13.1"
+                disk:
+                    /:
+                        total: "982241075200"
+                        used: "236745347072"
+                email: dexterding99@icloud.com
+                executable: /home/fredkeira/projects/assignment1-basics/.venv/bin/python3
+                git:
+                    commit: c771a479ddec7a16ca85f56dc2491816f8af229b
+                    remote: git@github.com:dextermayhewjd/assignment1-basics.git
+                gpu: NVIDIA GeForce RTX 3090
+                gpu_count: 2
+                gpu_nvidia:
+                    - architecture: Ampere
+                      cudaCores: 10496
+                      memoryTotal: "25769803776"
+                      name: NVIDIA GeForce RTX 3090
+                      uuid: GPU-6cb8bb6c-f549-b9e1-5077-46045642e175
+                    - architecture: Ampere
+                      cudaCores: 10496
+                      memoryTotal: "25769803776"
+                      name: NVIDIA GeForce RTX 3090
+                      uuid: GPU-768d6d04-1c0d-34ba-f6dc-4b72d39c19e9
+                host: fredkeira-workstation
+                memory:
+                    total: "67280011264"
+                os: Linux-6.14.0-37-generic-x86_64-with-glibc2.39
+                program: /home/fredkeira/projects/assignment1-basics/cs336_basics/train_llm/debug_train.py
+                python: CPython 3.11.9
+                root: /home/fredkeira/projects/assignment1-basics
+                startedAt: "2026-01-19T14:04:39.443796Z"
+                writerId: vq96bd8cysfma9gzauc04ezv5ds2l2xy
+        m: []
+        python_version: 3.11.9
+        t:
+            "1":
+                - 1
+            "2":
+                - 1
+            "3":
+                - 13
+                - 16
+                - 61
+            "4": 3.11.9
+            "5": 0.24.0
+            "12": 0.24.0
+            "13": linux-x86_64
+data:
+    value:
+        data_dir: /home/fredkeira/projects/assignment1-basics/token_to_id_outputs_tinystory
+        eot_id: 256
+        memmap_dtype: uint16
+        train_bin_name: train_ids.bin
+        valid_bin_name: valid_ids.bin
+experiment:
+    value:
+        debug_mode: false
+        debug_norms: true
+        debug_overfit: false
+        debug_shapes: false
+        exp_name: tinystories_base
+        one_step: false
+        resume: false
+        resume_path: null
+        run_dir: /home/fredkeira/data/cs336_training_result
+model:
+    value:
+        context_length: 256
+        d_ff: 1344
+        d_model: 512
+        num_heads: 16
+        num_layers: 4
+        rope_theta: 10000
+        vocab_size: 10000
+optim:
+    value:
+        beta1: 0.9
+        beta2: 0.995
+        cosine_steps: 1000
+        eps: 1e-08
+        lr_max: 0.003
+        lr_min: 0.0004
+        warmup_steps: 500
+        weight_decay: 0
+runtime:
+    value:
+        device: cuda:1
+        dtype: float32
+train:
+    value:
+        batch_size: 128
+        eval_every: 200
+        eval_steps: 20
+        max_l2_norm: 1
+        max_steps: 2200
+        save_every: 500
+        seed: 1337
